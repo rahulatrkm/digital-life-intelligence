@@ -81,3 +81,26 @@ def test_config_yaml_round_trips(config: SimulationConfig, tmp_path) -> None:
     config.to_yaml(path)
 
     assert SimulationConfig.from_yaml(path).fingerprint() == config.fingerprint()
+
+
+@pytest.mark.parametrize("experiment_id", sorted(SUITE))
+def test_every_experiment_supports_a_living_population(experiment_id: str) -> None:
+    """Guards the calibration in suite.py.
+
+    At the published resource settings every experiment except E0 was extinct
+    well before step 400, so its detectors compared dead worlds. Scaled down for
+    speed; the densities are fractions of the grid, so they carry over.
+    """
+    spec = SUITE[experiment_id]
+    config = spec.build_config(
+        {"world": {"width": 40, "height": 40, "seed": 4}, "cell": {"start_population": 80}}
+    )
+
+    world = World(config)
+    for _ in range(min(400, config.stop.max_steps)):
+        world.step()
+        if not world.cells:
+            break
+
+    assert world.cells, f"{experiment_id} went extinct at step {world.timestep}"
+    assert world.lineage.max_generation() >= 3, f"{experiment_id} barely reproduced"

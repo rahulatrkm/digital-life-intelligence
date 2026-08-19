@@ -23,6 +23,25 @@ BASE_OVERRIDES: dict[str, Any] = {
     "logging": {"metrics_interval": 100, "trace_interval": 20, "checkpoint_interval": 0},
 }
 
+# Resource settings below are calibrated, not guessed. At the published values
+# every experiment except E0 went extinct within 200-500 steps, so its detectors
+# compared one dead world against another and reported "no capability" for a
+# population that never lived -- the section 19 "all cells die quickly" failure.
+#
+# The calibration searched for the smallest supply satisfying a criterion fixed
+# in advance: survives the full run on every seed, with max_generation >= 10 so
+# the population is turning over rather than coasting. Only carrying-capacity
+# fields were touched. Detector thresholds, control definitions and every
+# mechanism under test (memory, signals, markers, probes, cue lead times,
+# variants, sensor stage) were held fixed, so this cannot tune toward a result.
+#
+# Two mechanics decide which knob is the effective one:
+#   * `hidden` never reads regen_rate -- it schedules from the patch mask, so
+#     only coverage moves its supply.
+#   * every regime clips at max_per_tile, so past a point extra regen is
+#     discarded and only raises boom-bust amplitude.
+# Both are asserted in tests/test_environments.py.
+
 
 @dataclass(frozen=True)
 class ExperimentSpec:
@@ -65,8 +84,15 @@ E1 = ExperimentSpec(
         "resources, against random-action and no-mutation controls."
     ),
     overrides={
-        "resources": {"regime": "static", "initial_density": 0.06},
+        # Static patches are never replenished (section 5.4), so this world is
+        # terminal by construction and no coverage makes it survivable: at ten
+        # times the food the population simply grows to eat it and still
+        # collapses around step 440. The run therefore ends inside the window
+        # where both arms are alive to be compared. At 300 steps the population
+        # is already crashing, which would measure a die-off, not foraging.
+        "resources": {"regime": "static", "initial_density": 0.12},
         "hazards": {"regime": "static"},
+        "stop": {"max_steps": 250},
     },
     controls=("random", "no_mutation"),
     detectors=("resource_behaviour",),
@@ -81,7 +107,7 @@ E2 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 1},
-        "resources": {"regime": "regenerating", "regen_rate": 0.03},
+        "resources": {"regime": "regenerating", "initial_density": 0.16, "regen_rate": 0.06},
         "hazards": {"regime": "delayed", "cue_lead_time": 10},
     },
     controls=("scrambled_memory", "no_memory", "random"),
@@ -97,7 +123,9 @@ E3 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 1},
-        "resources": {"regime": "hidden", "cue_lead_time": 12},
+        # `hidden` releases food from the patch mask, so coverage is the only
+        # lever that changes its supply.
+        "resources": {"regime": "hidden", "cue_lead_time": 12, "initial_density": 0.6},
         "hazards": {"regime": "delayed", "cue_lead_time": 10},
     },
     controls=("no_memory", "random", "static_env"),
@@ -113,7 +141,16 @@ E4 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 3},
-        "resources": {"regime": "hidden", "cue_lead_time": 12, "initial_density": 0.05},
+        # Stage 3 carries the heaviest metabolic load in the suite (most
+        # sensors, plus EMIT at 0.5), so it needs a deeper per-tile store as
+        # well as coverage. Raising coverage alone to 0.6 overshoots into
+        # boom-bust and one seed in three still collapses.
+        "resources": {
+            "regime": "hidden",
+            "cue_lead_time": 12,
+            "initial_density": 0.5,
+            "max_per_tile": 20.0,
+        },
         "hazards": {"regime": "spreading"},
         "physics": {"signal_channels": 2},
     },
@@ -130,7 +167,16 @@ E5 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 3},
-        "resources": {"regime": "scarce", "scarcity_factor": 0.5, "regen_rate": 0.04},
+        # scarcity_factor thins the patch count *and* scales regen, so 0.5
+        # compounds to a quarter of the usual supply -- roughly four patches in
+        # a 64x64 world. Scarcity has to be survivable to select for
+        # competition rather than simply killing everyone.
+        "resources": {
+            "regime": "scarce",
+            "scarcity_factor": 0.5,
+            "initial_density": 0.32,
+            "regen_rate": 0.16,
+        },
         "hazards": {"regime": "predator", "predator_count": 6},
     },
     controls=("isolated", "random"),
@@ -146,7 +192,12 @@ E6 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 2},
-        "resources": {"regime": "regenerating", "variants": 4},
+        "resources": {
+            "regime": "regenerating",
+            "variants": 4,
+            "initial_density": 0.16,
+            "regen_rate": 0.1,
+        },
         "hazards": {"regime": "static"},
     },
     controls=("single_variant", "random"),
@@ -162,7 +213,14 @@ E7 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 2},
-        "resources": {"regime": "cyclic", "cycle_period": 300},
+        # Rectifying a sine delivers ~1/pi of the nominal rate, so cyclic needs
+        # roughly three times the regen of `regenerating` for the same supply.
+        "resources": {
+            "regime": "cyclic",
+            "cycle_period": 300,
+            "initial_density": 0.6,
+            "regen_rate": 0.4,
+        },
         "hazards": {"regime": "seasonal", "season_period": 800},
         "physics": {"marker_decay": 0.999, "alter_tile_cost": 2.0},
     },
@@ -179,7 +237,7 @@ E8 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 2},
-        "resources": {"regime": "hidden", "cue_lead_time": 15},
+        "resources": {"regime": "hidden", "cue_lead_time": 15, "initial_density": 0.6},
         "hazards": {"regime": "delayed"},
         "physics": {"probe_cost": 1.5},
     },
@@ -196,7 +254,13 @@ E9 = ExperimentSpec(
     ),
     overrides={
         "cell": {"max_sensor_stage": 3},
-        "resources": {"regime": "cyclic", "cycle_period": 400, "variants": 3},
+        "resources": {
+            "regime": "cyclic",
+            "cycle_period": 400,
+            "variants": 3,
+            "initial_density": 0.6,
+            "regen_rate": 0.4,
+        },
         "hazards": {"regime": "seasonal", "season_period": 1000},
         "stop": {"max_steps": 12000},
     },
