@@ -200,7 +200,12 @@ class SeasonalCatastrophe(HazardRegime):
     def update(self, world: World, rng) -> None:
         cfg = self.config
         world.hazard *= 1.0 - cfg.decay_rate
-        if cfg.season_period <= 0 or world.timestep % cfg.season_period:
+        # timestep 0 satisfies `0 % period == 0`, so without the first guard the
+        # catastrophe fires during initialisation and destroys half the founding
+        # population before it has lived a step. A season arrives after a season.
+        if cfg.season_period <= 0 or world.timestep == 0:
+            return
+        if world.timestep % cfg.season_period:
             return
         # Destroy a contiguous slab rather than random tiles: scattered damage
         # is survivable by luck, a swept region is survivable only by moving.
