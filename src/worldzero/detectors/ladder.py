@@ -93,8 +93,12 @@ def assess_stage_1(treatment: list[RunResult], random_control: list[RunResult]) 
     def harvest_per_capita(runs: list[RunResult]) -> float:
         values = []
         for run in runs:
-            population = max(1.0, run.metric("population"))
-            values.append(run.final_stats.get("births", 0) / population)
+            # Normalised by the founding population, which is fixed and known.
+            # Dividing by the *final* population reports total births for an
+            # extinct arm -- E3's dead random control scored 2062 "per capita"
+            # against a living treatment's 107.
+            founders = max(1.0, float(run.config.cell.start_population))
+            values.append(run.final_stats.get("births", 0) / founders)
         return float(np.mean(values)) if values else 0.0
 
     evolved = harvest_per_capita(treatment)
