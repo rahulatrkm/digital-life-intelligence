@@ -369,7 +369,10 @@ def build_parser() -> argparse.ArgumentParser:
     experiment.add_argument("--seed", type=int, help="first seed")
     experiment.add_argument("--seeds", type=int, nargs="+", help="explicit seed list")
     experiment.add_argument(
-        "--replicates", type=int, default=3, help="number of seeds (detectors want >= 3)"
+        "--replicates",
+        type=int,
+        default=5,
+        help="seeds per arm (below 5 the permutation test cannot reach p<0.05)",
     )
     _add_world_options(experiment)
     _add_output_options(experiment)
@@ -379,7 +382,12 @@ def build_parser() -> argparse.ArgumentParser:
     suite.add_argument("--only", nargs="+", help="subset of experiment ids")
     suite.add_argument("--seed", type=int, help="first seed")
     suite.add_argument("--seeds", type=int, nargs="+", help="explicit seed list")
-    suite.add_argument("--replicates", type=int, default=3, help="number of seeds per arm")
+    suite.add_argument(
+        "--replicates",
+        type=int,
+        default=5,
+        help="seeds per arm (below 5 the permutation test cannot reach p<0.05)",
+    )
     _add_world_options(suite)
     _add_output_options(suite)
     suite.set_defaults(func=cmd_suite)

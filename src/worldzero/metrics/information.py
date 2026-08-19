@@ -10,6 +10,8 @@ normally distributed and sample sizes vary wildly between runs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import combinations
+from math import comb
 
 import numpy as np
 
@@ -21,10 +23,22 @@ class TestResult:
     effect_size: float
     n_treatment: int
     n_control: int
+    resolution: float = 0.0
+    """Smallest p-value the design can produce at this sample size.
+
+    A permutation test cannot report a p below 1/(number of distinct labellings),
+    so at 3 versus 3 runs a two-sided test bottoms out near 0.10 no matter how
+    large the effect. Without this, an underpowered comparison is indistinguishable
+    from a real null."""
 
     @property
     def significant(self) -> bool:
         return self.p_value < 0.05
+
+    @property
+    def underpowered(self) -> bool:
+        """True when significance is unreachable regardless of effect size."""
+        return self.resolution > 0.05
 
     def to_dict(self) -> dict[str, float | int | bool]:
         return {
@@ -33,7 +47,9 @@ class TestResult:
             "effect_size": round(self.effect_size, 6),
             "n_treatment": self.n_treatment,
             "n_control": self.n_control,
+            "resolution": round(self.resolution, 6),
             "significant": self.significant,
+            "underpowered": self.underpowered,
         }
 
 
@@ -110,32 +126,63 @@ def permutation_test(
     *,
     iterations: int = 2000,
     seed: int = 0,
+    alternative: str = "greater",
 ) -> TestResult:
-    """Two-sided difference-of-means test by label shuffling."""
+    """Difference-of-means test by label shuffling.
+
+    ``alternative='greater'`` is the default because every control in section 17
+    *removes* a mechanism, so the prediction is directional: the treatment should
+    beat the control, not merely differ from it. A two-sided test spends half its
+    power on an outcome the design excludes, which at small seed counts is the
+    difference between a detectable effect and an undetectable one.
+
+    Enumerates every labelling when there are few enough to do so, which removes
+    Monte Carlo noise from exactly the small-sample case where it matters most.
+    """
     treatment = np.asarray(treatment, dtype=np.float64).ravel()
     control = np.asarray(control, dtype=np.float64).ravel()
     if treatment.size == 0 or control.size == 0:
-        return TestResult(0.0, 1.0, 0.0, treatment.size, control.size)
+        return TestResult(0.0, 1.0, 0.0, treatment.size, control.size, 1.0)
 
     observed = float(treatment.mean() - control.mean())
     combined = np.concatenate([treatment, control])
     split = treatment.size
-    generator = np.random.default_rng(seed)
+    total = combined.size
+    two_sided = alternative == "two-sided"
 
-    count = 0
-    for _ in range(iterations):
-        generator.shuffle(combined)
-        difference = combined[:split].mean() - combined[split:].mean()
-        if abs(difference) >= abs(observed):
-            count += 1
+    def qualifies(difference: float) -> bool:
+        return abs(difference) >= abs(observed) if two_sided else difference >= observed
 
-    p_value = (count + 1) / (iterations + 1)
+    labellings = comb(total, split)
+    if labellings <= iterations:
+        count = 0
+        for subset in combinations(range(total), split):
+            mask = np.zeros(total, dtype=bool)
+            mask[list(subset)] = True
+            if qualifies(float(combined[mask].mean() - combined[~mask].mean())):
+                count += 1
+        p_value = count / labellings
+        # The observed labelling always qualifies, and under a two-sided rule its
+        # mirror does too, so those set the floor.
+        resolution = (2.0 if two_sided else 1.0) / labellings
+    else:
+        generator = np.random.default_rng(seed)
+        shuffled = combined.copy()
+        count = 0
+        for _ in range(iterations):
+            generator.shuffle(shuffled)
+            if qualifies(float(shuffled[:split].mean() - shuffled[split:].mean())):
+                count += 1
+        p_value = (count + 1) / (iterations + 1)
+        resolution = 1.0 / (iterations + 1)
+
     return TestResult(
         statistic=observed,
         p_value=p_value,
         effect_size=cohens_d(treatment, control),
         n_treatment=treatment.size,
         n_control=control.size,
+        resolution=resolution,
     )
 
 

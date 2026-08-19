@@ -126,6 +126,42 @@ class Detector:
             seed=seed,
         )
 
+    def beats_control_criterion(
+        self,
+        name: str,
+        treatment: list[RunResult],
+        control: list[RunResult],
+        *,
+        seed: int = 0,
+    ) -> tuple[Criterion, TestResult]:
+        """Compare fitness against a control, reporting power separately.
+
+        A permutation test cannot return a p below 1/(number of labellings), so
+        at 3 versus 3 runs significance is unreachable however large the effect.
+        Reporting that as a plain failure would claim the mechanism was absent
+        when the design simply could not see it, so it is called out the way a
+        missing control is: as a precondition, not as evidence.
+        """
+        test = self.beats_control(treatment, control, seed=seed)
+        if test.underpowered:
+            detail = (
+                f"underpowered: {test.n_treatment}v{test.n_control} runs can reach "
+                f"p>={test.resolution:.3f} at best; need more seeds "
+                f"(delta {test.statistic:.4f}, d={test.effect_size:.3f})"
+            )
+            return Criterion(name, False, detail, test.statistic), test
+
+        return (
+            Criterion(
+                name,
+                test.statistic > 0 and test.significant,
+                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}, "
+                f"d={test.effect_size:.3f}",
+                test.statistic,
+            ),
+            test,
+        )
+
     @staticmethod
     def consistent_across_seeds(
         treatment: list[RunResult],

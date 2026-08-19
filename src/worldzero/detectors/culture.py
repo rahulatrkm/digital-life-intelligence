@@ -45,15 +45,10 @@ class CultureDetector(Detector):
         criteria.append(self._information_outlives_authors(treatment))
         criteria.append(self._later_cells_use_it(treatment))
 
-        test = self.beats_control(treatment, stripped, seed=71)
-        criteria.append(
-            Criterion(
-                "removing_layer_reduces_performance",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "removing_layer_reduces_performance", treatment, stripped, seed=71
         )
+        criteria.append(criterion)
 
         return DetectionResult.from_criteria(
             self.name,
@@ -159,15 +154,10 @@ class ScienceDetector(Detector):
         )
         criteria.append(self._changes_information_state(treatment))
 
-        test = self.beats_control(treatment, no_probe, seed=89)
-        criteria.append(
-            Criterion(
-                "information_improves_outcomes",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "information_improves_outcomes", treatment, no_probe, seed=89
         )
+        criteria.append(criterion)
 
         return DetectionResult.from_criteria(
             self.name,

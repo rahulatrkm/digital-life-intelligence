@@ -48,15 +48,10 @@ class CommunicationDetector(Detector):
         criteria.append(self._signals_are_informative(treatment))
         criteria.append(self._receivers_respond(treatment))
 
-        test = self.beats_control(treatment, scrambled, seed=37)
-        criteria.append(
-            Criterion(
-                "beats_scrambled_signals",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "beats_scrambled_signals", treatment, scrambled, seed=37
         )
+        criteria.append(criterion)
 
         return DetectionResult.from_criteria(
             self.name,
@@ -143,15 +138,10 @@ class CooperationDetector(Detector):
         isolated = controls["isolated"]
         criteria: list[Criterion] = []
 
-        test = self.beats_control(treatment, isolated, seed=53)
-        criteria.append(
-            Criterion(
-                "groups_beat_isolated",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "groups_beat_isolated", treatment, isolated, seed=53
         )
+        criteria.append(criterion)
 
         criteria.append(self._is_costly(treatment))
         criteria.append(self._persists_across_generations(treatment))

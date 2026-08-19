@@ -44,16 +44,10 @@ class MemoryDetector(Detector):
         dependence = self._behaviour_depends_on_memory(treatment)
         criteria.append(dependence)
 
-        test = self.beats_control(treatment, scrambled, seed=11)
-        criteria.append(
-            Criterion(
-                "beats_scrambled_memory",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}, "
-                f"d={test.effect_size:.3f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "beats_scrambled_memory", treatment, scrambled, seed=11
         )
+        criteria.append(criterion)
 
         criteria.append(self.consistent_across_seeds(treatment, scrambled))
 

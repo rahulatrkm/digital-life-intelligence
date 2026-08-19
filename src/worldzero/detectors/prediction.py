@@ -44,15 +44,10 @@ class PredictionDetector(Detector):
         criteria.append(self._future_is_hidden(treatment))
         criteria.append(self._acts_before_state_arrives(treatment))
 
-        test = self.beats_control(treatment, reactive, seed=23)
-        criteria.append(
-            Criterion(
-                "beats_reactive_baseline",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "beats_reactive_baseline", treatment, reactive, seed=23
         )
+        criteria.append(criterion)
 
         return DetectionResult.from_criteria(
             self.name,

@@ -50,15 +50,10 @@ class AbstractionDetector(Detector):
         )
         criteria.append(self._generalises(treatment))
 
-        test = self.beats_control(treatment, memoriser, seed=61)
-        criteria.append(
-            Criterion(
-                "beats_memorisation_baseline",
-                test.statistic > 0 and test.significant,
-                f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}",
-                test.statistic,
-            )
+        criterion, test = self.beats_control_criterion(
+            "beats_memorisation_baseline", treatment, memoriser, seed=61
         )
+        criteria.append(criterion)
 
         return DetectionResult.from_criteria(
             self.name,
