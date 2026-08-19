@@ -1,0 +1,84 @@
+# Ablations and controls (whitepaper section 17).
+#
+# Every entry *removes* a mechanism. None add one, and none change the resource
+# economy, so a fitness gap between a treatment and its control is attributable
+# to the missing mechanism rather than to a different world.
+#
+# Apply one with:  worldzero run -c configs/world_zero.yaml --control no_memory
+#
+# This file mirrors worldzero.experiments.controls.CONTROLS and is verified
+# against it by tests/test_configs.py, so it cannot silently drift.
+
+random:
+  purpose: Establish a non-adaptive baseline
+  overrides:
+    controls:
+      random_actions: true
+
+no_mutation:
+  purpose: Show adaptation requires heritable variation
+  overrides:
+    controls:
+      disable_mutation: true
+    mutation:
+      enabled: false
+
+no_reproduction:
+  purpose: Show lineage evolution matters
+  overrides:
+    controls:
+      disable_reproduction: true
+
+no_memory:
+  purpose: Test memory contribution, and act as the reactive baseline for prediction
+  overrides:
+    controls:
+      disable_memory: true
+
+scrambled_memory:
+  purpose: Test whether memory content matters, holding the architecture fixed
+  overrides:
+    controls:
+      scramble_memory: true
+
+scrambled_signals:
+  purpose: Test whether signals carry meaning rather than merely existing
+  overrides:
+    controls:
+      scramble_signals: true
+
+isolated:
+  purpose: Test cooperation versus individual action
+  overrides:
+    controls:
+      isolate_cells: true
+
+static_env:
+  purpose: Test whether environmental change is needed for higher emergence
+  overrides:
+    controls:
+      static_environment: true
+
+no_markers:
+  purpose: Remove the external memory layer that culture is written onto
+  overrides:
+    controls:
+      disable_markers: true
+
+no_probe:
+  purpose: Remove costly information-gathering intervention
+  overrides:
+    controls:
+      disable_probe: true
+
+single_variant:
+  purpose: 'Memorisation baseline: one surface signature, nothing to abstract over'
+  overrides:
+    resources:
+      variants: 1
+
+alternative_physics:
+  purpose: Detect artifacts of one simulator by changing world topology
+  overrides:
+    world:
+      wrap: false

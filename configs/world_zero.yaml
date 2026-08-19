@@ -1,0 +1,96 @@
+# World Zero baseline (whitepaper Appendix A).
+#
+# Run with:  worldzero run -c configs/world_zero.yaml --steps 4000
+#
+# Deviations from the paper's literal Appendix A values are marked DEVIATION and
+# justified; every other number is the published default.
+
+name: world_zero
+description: Appendix A baseline. Stage 0 organisms, regenerating food, static toxins.
+
+world:
+  width: 128
+  height: 128
+  max_steps: 1000000
+  seed: 42
+  obstacle_density: 0.0
+  wrap: true
+
+physics:
+  move_cost: 1.0
+  idle_cost: 0.1
+  sense_cost: 0.05
+  signal_cost: 0.5
+  memory_cost: 0.01
+  probe_cost: 2.0
+  alter_tile_cost: 3.0
+  consume_action_cost: 0.1
+  consume_rate: 10.0
+  max_consume_per_step: 1.0
+  reproduction_threshold: 80.0
+  reproduction_cost: 1.0
+  child_energy_fraction: 0.4
+  divide_mode: automatic
+  max_age: 1000
+  max_energy: 200.0
+  hazard_damage_rate: 2.0
+  integrity_max: 1.0
+  integrity_regen: 0.02
+  one_cell_per_tile: true
+  signal_ttl: 20
+  signal_decay: 0.9
+  signal_channels: 2
+  marker_decay: 0.999
+
+resources:
+  regime: regenerating
+  initial_density: 0.08
+  # DEVIATION: Appendix A says 0.01, which starves every seeded population before
+  # selection can act -- the section 19 "all cells die quickly" failure. 0.05 is
+  # the lowest rate that sustained a population over 3000 steps.
+  regen_rate: 0.05
+  max_per_tile: 10.0
+  patch_radius: 3
+  variants: 1
+
+hazards:
+  regime: static
+  initial_density: 0.02
+  damage_rate: 2.0
+
+cell:
+  start_energy: 50.0
+  start_population: 200
+  internal_registers: 4
+  genome_length: 16
+  # Stage 0 is the section 3 default: purely reactive, no memory, no signalling.
+  # The staged experiments raise this; a baseline run must not.
+  max_sensor_stage: 0
+
+mutation:
+  enabled: true
+  point_rate: 0.02
+  insertion_rate: 0.005
+  deletion_rate: 0.005
+  duplication_rate: 0.005
+  priority_swap_rate: 0.005
+  sensor_rate: 0.01
+  action_rate: 0.01
+  memory_expansion_rate: 0.0005
+
+logging:
+  log_births: true
+  log_deaths: true
+  log_mutations: false
+  log_actions: false
+  metrics_interval: 100
+  trace_interval: 25
+  checkpoint_interval: 10000
+
+acceleration:
+  enabled: false
+
+stop:
+  max_steps: 100000
+  stop_on_extinction: true
+  max_population: 20000
