@@ -54,6 +54,37 @@ Every run writes to `outputs/<run_id>/`:
 | `summary.json` | final stats, lineage summary, fitness |
 | `checkpoints/` | resumable world snapshots |
 
+Run directories are regenerable and can reach gigabytes, so they are gitignored.
+
+## Checkpoints
+
+A checkpoint captures the whole world — grids, cells, genomes, energy ledger,
+lineage aggregates, per-stream RNG state — so a restored run continues
+*identically* rather than merely similarly.
+
+```bash
+# Snapshot every 1000 steps during a run
+worldzero run --steps 5000 --set logging.checkpoint_interval=1000
+
+# Look at one without running it
+worldzero inspect reference/world_zero_step2000.json.gz
+
+# Continue it
+worldzero resume reference/world_zero_step2000.json.gz --steps 500 --save next.json.gz
+```
+
+[reference/](reference) holds one small checkpoint that ships with the
+repository: a 32×32 world at step 2000, 66 KB gzipped. It is the checkpoint
+format's compatibility contract — `tests/test_reference_checkpoint.py` loads and
+resumes it, so a schema change that would orphan everyone's existing
+checkpoints fails in CI rather than in their run. Regenerate it with
+`python scripts/make_reference_checkpoint.py`.
+
+Size matters here: gzipped, a 32×32 world is ~66 KB and a 64×64 world ~250 KB,
+but uncompressed they are 0.7–4 MB and dominated by cell genomes. Committing
+bulk run checkpoints would bloat history permanently, so only the curated
+reference file is tracked.
+
 ## How it works
 
 A **cell** has energy, position, age, integrity, a genome, memory registers and

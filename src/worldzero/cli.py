@@ -24,6 +24,7 @@ from worldzero.detectors import build_ladder
 from worldzero.experiments.controls import CONTROLS, apply_control, describe_controls
 from worldzero.experiments.runner import ExperimentRunner
 from worldzero.experiments.suite import SUITE, get_experiment
+from worldzero.storage.checkpoints import load_checkpoint, save_checkpoint
 from worldzero.viz.render import plot_metrics, render_metrics, render_world, replay_summary
 
 #: Series worth plotting by default: population and lifespan show whether the
@@ -286,6 +287,61 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_inspect(args: argparse.Namespace) -> int:
+    """Summarise a checkpoint, loading it so a corrupt file fails here."""
+    path = Path(args.checkpoint)
+    if not path.exists():
+        print(f"no such checkpoint: {path}", file=sys.stderr)
+        return 2
+
+    world = load_checkpoint(path)
+    print(
+        json.dumps(
+            {
+                "path": str(path),
+                "size_bytes": path.stat().st_size,
+                "run_id": world.run_id,
+                "world_id": world.world_id,
+                "code_version": __version__,
+                "config_fingerprint": world.config.fingerprint(),
+                "seed": world.config.world.seed,
+                "controls": world.config.controls.active(),
+                "stats": world.stats(),
+                "lineage": world.lineage.summary(top=3),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def cmd_resume(args: argparse.Namespace) -> int:
+    """Continue a saved world (whitepaper section 12.3: checkpoints are for replay)."""
+    path = Path(args.checkpoint)
+    if not path.exists():
+        print(f"no such checkpoint: {path}", file=sys.stderr)
+        return 2
+
+    world = load_checkpoint(path)
+    start = world.timestep
+    print(f"resumed {world.run_id} at step {start}  pop {world.population}")
+
+    for _ in range(args.steps):
+        world.step()
+        if not world.cells and world.config.stop.stop_on_extinction:
+            print(f"extinct at step {world.timestep}")
+            break
+
+    print(f"ran {world.timestep - start} steps -> step {world.timestep}")
+    print(json.dumps(world.stats(), indent=2, sort_keys=True))
+
+    if args.save:
+        saved = save_checkpoint(world, args.save)
+        print(f"\nwrote {saved} ({saved.stat().st_size / 1024:.0f}K)")
+    return 0
+
+
 def cmd_plot(args: argparse.Namespace) -> int:
     path = Path(args.metrics)
     if not path.exists():
@@ -408,6 +464,16 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("events", help="path to events.jsonl or events.jsonl.gz")
     replay.add_argument("--limit", type=int, default=0, help="stop after N events")
     replay.set_defaults(func=cmd_replay)
+
+    inspect = sub.add_parser("inspect", help="summarise a saved checkpoint")
+    inspect.add_argument("checkpoint", help="path to a .json or .json.gz checkpoint")
+    inspect.set_defaults(func=cmd_inspect)
+
+    resume = sub.add_parser("resume", help="continue a saved checkpoint")
+    resume.add_argument("checkpoint", help="path to a .json or .json.gz checkpoint")
+    resume.add_argument("--steps", type=int, default=1000, help="steps to run")
+    resume.add_argument("--save", help="write a new checkpoint here when finished")
+    resume.set_defaults(func=cmd_resume)
 
     plot = sub.add_parser("plot", help="sparkline or PNG dashboard from a metrics file")
     plot.add_argument("metrics", help="path to metrics.jsonl")

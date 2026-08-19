@@ -12,7 +12,16 @@ from worldzero.core.world import World
 from worldzero.storage.checkpoints import load_checkpoint, save_checkpoint
 from worldzero.storage.events import EventLog, EventType, read_events
 
-TOLERANCE = 1e-6
+#: Conservation is judged against total throughput, not as an absolute figure:
+#: the grids are float32, so a long run accumulates rounding proportional to the
+#: energy that moved, and a fixed epsilon would fail on run length alone.
+RELATIVE_TOLERANCE = 1e-9
+
+
+def _residual(world: World) -> tuple[float, float]:
+    ledger = world.ledger
+    throughput = max(1.0, ledger.initial_endowment + ledger.harvested)
+    return abs(ledger.balance(world.living_energy())), RELATIVE_TOLERANCE * throughput
 
 
 def test_energy_accounting_balances(world: World) -> None:
@@ -20,8 +29,8 @@ def test_energy_accounting_balances(world: World) -> None:
     for _ in range(200):
         world.step()
 
-    residual = world.ledger.balance(world.living_energy())
-    assert abs(residual) < TOLERANCE, f"energy ledger drifted by {residual}"
+    residual, allowed = _residual(world)
+    assert residual < allowed, f"energy ledger drifted by {residual}"
 
 
 def test_energy_accounting_balances_through_extinction(config: SimulationConfig) -> None:
@@ -37,7 +46,8 @@ def test_energy_accounting_balances_through_extinction(config: SimulationConfig)
         world.step()
 
     assert world.population == 0
-    assert abs(world.ledger.balance(world.living_energy())) < TOLERANCE
+    residual, allowed = _residual(world)
+    assert residual < allowed
 
 
 def test_energy_never_silently_appears(world: World) -> None:

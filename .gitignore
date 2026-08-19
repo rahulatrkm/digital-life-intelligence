@@ -1,10 +1,14 @@
 # Simulation output: run directories, event logs, checkpoints, metrics.
+# Regenerable and large, so it stays out of history. The one exception is
+# reference/, a small committed checkpoint used as the format's compatibility
+# contract -- see tests/test_reference_checkpoint.py.
 outputs/
 runs/
 *.jsonl
 *.jsonl.gz
 *.parquet
 checkpoints/
+!reference/
 
 # Python
 __pycache__/
