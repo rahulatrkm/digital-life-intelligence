@@ -68,7 +68,7 @@ class NoveltyArchive:
     threshold: float = 0.15
     min_generations: int = 3
     archive: list[np.ndarray] = field(default_factory=list)
-    pending: dict[int, tuple[np.ndarray, set[int]]] = field(default_factory=dict)
+    pending: list[tuple[np.ndarray, set[int]]] = field(default_factory=list)
     accepted: int = 0
     rejected_transient: int = 0
     history: list[float] = field(default_factory=list)
@@ -87,31 +87,40 @@ class NoveltyArchive:
         if distance < self.threshold:
             return distance
 
-        key = self._bucket(signature)
-        stored, generations = self.pending.get(key, (signature, set()))
-        generations.add(generation)
-        self.pending[key] = (stored, generations)
+        # Candidates are matched by proximity, not by an exact key. The
+        # signature is a continuous population average, so hashing it means two
+        # near-identical behaviours are different candidates and none ever
+        # recurs -- the archive then stays empty however much evolution happens.
+        index = self._nearest_pending(signature)
+        if index is None:
+            self.pending.append((signature, {generation}))
+            return distance
 
+        stored, generations = self.pending[index]
+        generations.add(generation)
         if len(generations) >= self.min_generations:
             self.archive.append(stored)
             self.accepted += 1
-            del self.pending[key]
+            self.pending.pop(index)
         return distance
+
+    def _nearest_pending(self, signature: np.ndarray) -> int | None:
+        if not self.pending:
+            return None
+        stacked = np.vstack([candidate for candidate, _ in self.pending])
+        distances = np.linalg.norm(stacked - signature, axis=1)
+        best = int(np.argmin(distances))
+        return best if float(distances[best]) < self.threshold else None
 
     def prune(self, current_generation: int, window: int = 20) -> None:
         """Drop candidates that stopped recurring: they were transient mutants."""
-        stale = [
-            key
-            for key, (_, generations) in self.pending.items()
-            if generations and current_generation - max(generations) > window
-        ]
-        for key in stale:
-            del self.pending[key]
-            self.rejected_transient += 1
-
-    @staticmethod
-    def _bucket(signature: np.ndarray) -> int:
-        return hash(tuple(np.round(signature, 2)))
+        kept: list[tuple[np.ndarray, set[int]]] = []
+        for candidate, generations in self.pending:
+            if generations and current_generation - max(generations) > window:
+                self.rejected_transient += 1
+            else:
+                kept.append((candidate, generations))
+        self.pending = kept
 
     def summary(self) -> dict[str, float | int]:
         recent = self.history[-50:]
