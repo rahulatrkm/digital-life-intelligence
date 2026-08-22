@@ -13,9 +13,11 @@ Single rolling status file. Newest entry first. Updated each working day.
 |---|---|
 | Ladder reached | **stage 1 — resource behaviour** (contiguous), stage 1 (any) |
 | Last full suite | 2026-08-19, 5 seeds/arm, ~100 worlds |
-| Tests | 126 passing, ruff clean |
+| Tests | 145 passing, ruff clean |
 | Experiments viable | 10 / 10 populations survive and reproduce |
 | Experiments interpretable | 6 / 10 (see open issues) |
+| Throughput | 5.02× via parallel workers, identical results |
+| Liveness | `worldzero status [--serve PORT]` |
 
 ### Suite result, 2026-08-19
 
@@ -51,24 +53,69 @@ about anything.
 
 ## 2026-08-22
 
-**Done**
+**Throughput — 5× faster**
 
-- Replaced the stage-1 criterion `occupies_resource_tiles`, which ran
-  backwards. It measured the fraction of samples taken while standing on a
-  tile that still held resource — but a cell that successfully forages eats
-  the tile to zero and is then recorded as never having found it. Evolved
-  populations scored 0.055 against random's 0.441 in E2 while *outliving
-  them three to one*. Replaced with `harvest_efficiency`, energy won per
-  unit of energy spent winning it, taken from the energy ledger: scale-free,
-  comparable across arms of different size and duration, and rising with
-  foraging skill rather than falling.
-- Added `harvested` and `harvest_efficiency` to the metric engine.
-- Started the two-sided re-calibration of E1/E6/E7 (viability **and**
-  selection), criterion fixed before any detector runs.
+| E0, 3 arms × 5 seeds × 1200 steps | |
+|---|---|
+| sequential | 81.7 s |
+| parallel ×8 | 16.3 s |
+| **speedup** | **5.02×** — identical `final_stats` |
+
+The machine has 8 cores and the runner used one. §11.2 requires parallel
+execution not to change biological outcomes, which holds by construction:
+a run is fully determined by config and seed, and every cell-level draw
+comes from a stream keyed on that cell's identity rather than a shared
+cursor. Every arm of an experiment now shares one worker pool.
+`--workers 0` auto-detects. Tests assert sequential and parallel agree on
+`final_stats`, seed ordering, control grouping and ladder verdict.
+
+Profiled first rather than guessing: `read_sensor` is 18% of CPU and
+genome evaluation ~40% — real, but not where the win was.
+
+**Observability — because a job died silently**
+
+Yesterday's calibration sweep vanished, leaving an empty log and an
+untouched output directory, which from outside is identical to a job
+still working.
+
+```
+worldzero status outputs/progress.json             # exit 0 if alive
+worldzero status outputs/progress.json --serve 8787
+```
+
+`/status` and `/healthz`, the latter returning 503 when not alive so a
+watchdog needs no parsing. Liveness is decided by **staleness** — a run
+that stops refreshing without recording an outcome reads as `stale`, not
+`running`. Failures capture the exception rather than just stopping.
+
+**Fixed — stage 1 criterion ran backwards**
+
+`occupies_resource_tiles` measured the fraction of samples taken while
+standing on a tile that *still held* resource. A cell that forages
+successfully eats the tile to zero and is recorded as never having found
+it. In E2 the evolved population scored 0.055 against random's 0.441
+while outliving it three to one. Replaced with `harvest_efficiency` —
+energy won per unit spent winning it, from the ledger. Scale-free and
+rises with skill instead of falling.
+
+**Three bugs found in my own new code, each by measurement**
+
+1. **Windows spawn footgun.** Workers re-import `__main__`, so the
+   unguarded benchmark script had 8 workers re-run it, deleting the
+   output directory under the parent. The tests could not have caught
+   this — under pytest `__main__` is pytest, which is import-safe.
+   `BrokenProcessPool` now re-raises naming both cause and fix.
+2. **Heartbeat was a side effect of work finishing.** With runs taking
+   up to 300 s, a healthy job crossed the 120 s staleness threshold and
+   read as dead. Liveness now has its own thread.
+3. **A status poller could kill the writer.** Windows refuses to replace
+   a file another handle has open, so polling raised `PermissionError`
+   inside the heartbeat thread. Replace now retries then drops the
+   update — a missed refresh is recoverable, a crashed run is not.
 
 **In flight**
 
-- Re-calibration sweep for E1, E6, E7.
+- Two-sided recalibration of E1/E6/E7 (84 worlds, parallel, observable).
 - E9 re-run pending the novelty fix.
 
 ---
