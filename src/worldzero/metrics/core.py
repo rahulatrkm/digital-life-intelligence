@@ -81,6 +81,11 @@ class MetricEngine:
             "active_signals": float(len(world.signals)),
             "probe_info_gain": float(world.probe_info_gain),
             "energy_balance": world.ledger.balance(world.living_energy()),
+            # foraging: energy won per unit of energy spent winning it. Scale
+            # free, so arms with different population sizes and run lengths stay
+            # comparable, and it rises with foraging skill rather than falling.
+            "harvested": float(world.ledger.harvested),
+            "harvest_efficiency": float(world.ledger.harvested) / max(1.0, world.ledger.spent),
         }
 
         values["adaptation_rate"] = self._adaptation_rate(world, values["population"])

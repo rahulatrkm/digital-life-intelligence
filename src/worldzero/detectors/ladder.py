@@ -104,31 +104,26 @@ def assess_stage_1(treatment: list[RunResult], random_control: list[RunResult]) 
     evolved = harvest_per_capita(treatment)
     random_rate = harvest_per_capita(random_control)
 
-    occupancy = []
-    for run in treatment:
-        if run.trace is None or not run.trace.samples:
-            continue
-        occupancy.append(float(np.mean(run.trace.column("resource_here") > 0.0)))
-    random_occupancy = []
-    for run in random_control:
-        if run.trace is None or not run.trace.samples:
-            continue
-        random_occupancy.append(float(np.mean(run.trace.column("resource_here") > 0.0)))
+    # Energy won per unit spent winning it. The previous measure, the fraction
+    # of samples standing on a tile with resource left, ran backwards: a cell
+    # that successfully forages eats the tile to zero and is then recorded as
+    # not being on food, so the better the forager the lower its score.
+    evolved_efficiency = float(np.mean([r.metric("harvest_efficiency") for r in treatment]))
+    random_efficiency = float(np.mean([r.metric("harvest_efficiency") for r in random_control]))
 
     criteria = [
         Criterion(
             "outbreeds_random_baseline",
             evolved > random_rate,
-            f"births per capita {evolved:.3f} vs random {random_rate:.3f}",
+            f"births per founder {evolved:.3f} vs random {random_rate:.3f}",
             evolved - random_rate,
         ),
         Criterion(
-            "occupies_resource_tiles",
-            bool(occupancy)
-            and bool(random_occupancy)
-            and float(np.mean(occupancy)) > float(np.mean(random_occupancy)),
-            f"time on resource tiles {np.mean(occupancy) if occupancy else 0:.3f} "
-            f"vs random {np.mean(random_occupancy) if random_occupancy else 0:.3f}",
+            "forages_more_efficiently",
+            evolved_efficiency > random_efficiency,
+            f"energy harvested per unit spent {evolved_efficiency:.3f} "
+            f"vs random {random_efficiency:.3f}",
+            evolved_efficiency - random_efficiency,
         ),
     ]
     return DetectionResult.from_criteria("resource_behaviour", 1, criteria)

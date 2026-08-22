@@ -12,7 +12,14 @@ from worldzero.detectors.ladder import assess_stage_1, build_ladder
 from worldzero.results import RunResult
 
 
-def _run(label: str, *, births: int, population: float, founders: int = 200) -> RunResult:
+def _run(
+    label: str,
+    *,
+    births: int,
+    population: float,
+    founders: int = 200,
+    efficiency: float = 1.0,
+) -> RunResult:
     config = SimulationConfig(name="t").merged({"cell": {"start_population": founders}})
     return RunResult(
         run_id=f"{label}-{births}",
@@ -22,9 +29,24 @@ def _run(label: str, *, births: int, population: float, founders: int = 200) -> 
         config=config,
         steps=1000,
         final_stats={"births": births, "population": population},
-        metric_summary={"final": {"population": population}},
+        metric_summary={
+            "final": {"population": population, "harvest_efficiency": efficiency}
+        },
         extinct_at=None if population else 1000,
     )
+
+
+def test_efficient_forager_is_not_penalised_for_eating() -> None:
+    """The previous measure counted time standing on tiles that still had food,
+    so a cell that ate the tile scored as though it had never found it."""
+    good = [_run("treatment", births=1000, population=150.0, efficiency=2.0) for _ in range(3)]
+    poor = [_run("random", births=400, population=150.0, efficiency=0.5) for _ in range(3)]
+
+    result = assess_stage_1(good, poor)
+    forages = next(c for c in result.criteria if c.name == "forages_more_efficiently")
+
+    assert forages.passed, forages.detail
+    assert result.detected
 
 
 def test_extinct_arm_does_not_inflate_births_per_capita() -> None:
