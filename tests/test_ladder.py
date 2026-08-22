@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from worldzero.core.config import SimulationConfig
 from worldzero.detectors.base import Criterion, DetectionResult
-from worldzero.detectors.ladder import assess_stage_1, build_ladder
+from worldzero.detectors.ladder import assess_stage_0, assess_stage_1, build_ladder
 from worldzero.results import RunResult
 
 
@@ -74,6 +74,56 @@ def test_births_per_capita_is_a_rate_not_a_total() -> None:
 
 def test_missing_runs_report_unavailable() -> None:
     assert not assess_stage_1([], []).detected
+
+
+def _survival_run(
+    label: str, *, lifespan: float, extinct_at: int | None, steps: int = 4000
+) -> RunResult:
+    return RunResult(
+        run_id=f"{label}-{lifespan}",
+        world_id="w",
+        label=label,
+        seed=1,
+        config=SimulationConfig(name="t"),
+        steps=steps,
+        final_stats={"births": 100, "population": 0.0 if extinct_at else 150.0},
+        metric_summary={
+            "final": {
+                "mean_lifespan": lifespan,
+                "population": 0.0 if extinct_at else 150.0,
+            }
+        },
+        extinct_at=extinct_at,
+    )
+
+
+def test_extinct_arm_cannot_outlast_a_surviving_one() -> None:
+    """mean_lifespan averages only over cells that died, so a prolific lineage
+    looks short-lived and a dying one looks long-lived. In E3/E4/E8 an extinct
+    random arm scored ~112 against a thriving treatment's 42-53."""
+    thriving = [_survival_run("treatment", lifespan=45.0, extinct_at=None) for _ in range(3)]
+    dead = [_survival_run("random", lifespan=112.0, extinct_at=400) for _ in range(3)]
+
+    result = assess_stage_0(thriving, dead)
+    outlasts = next(c for c in result.criteria if c.name == "outlasts_random_baseline")
+
+    assert outlasts.passed, outlasts.detail
+    assert result.detected
+
+
+def test_lifespan_breaks_the_tie_when_both_arms_survive() -> None:
+    better = [_survival_run("treatment", lifespan=90.0, extinct_at=None) for _ in range(3)]
+    worse = [_survival_run("random", lifespan=60.0, extinct_at=None) for _ in range(3)]
+
+    assert assess_stage_0(better, worse).detected
+    assert not assess_stage_0(worse, better).detected
+
+
+def test_a_dying_treatment_does_not_pass_stage_0() -> None:
+    dying = [_survival_run("treatment", lifespan=200.0, extinct_at=300) for _ in range(3)]
+    surviving = [_survival_run("random", lifespan=50.0, extinct_at=None) for _ in range(3)]
+
+    assert not assess_stage_0(dying, surviving).detected
 
 
 def test_ladder_requires_contiguity() -> None:

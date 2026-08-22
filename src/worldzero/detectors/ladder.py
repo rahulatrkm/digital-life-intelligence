@@ -64,21 +64,47 @@ def assess_stage_0(treatment: list[RunResult], random_control: list[RunResult]) 
     if not treatment or not random_control:
         return DetectionResult("self_maintenance", 0, False, 0.0, notes=["missing runs"])
 
-    evolved = float(np.mean([r.metric("mean_lifespan") for r in treatment]))
-    random_lifespan = float(np.mean([r.metric("mean_lifespan") for r in random_control]))
+    def persistence(runs: list[RunResult]) -> float:
+        """Steps the population lasted, whether or not it reached the end."""
+        return float(np.mean([float(r.extinct_at or r.steps) for r in runs]))
+
+    def lifespan(runs: list[RunResult]) -> float:
+        return float(np.mean([r.metric("mean_lifespan") for r in runs]))
+
+    evolved_persistence = persistence(treatment)
+    random_persistence = persistence(random_control)
     survived = sum(1 for r in treatment if r.survived())
+    random_survived = sum(1 for r in random_control if r.survived())
+
+    # Population persistence decides it first. Mean lifespan averages only over
+    # cells that *died*, so a lineage that breeds prolifically fills the sample
+    # with short-lived offspring while a dying one records just its long-lived
+    # founders: in E3, E4 and E8 an extinct random arm scored ~112 against a
+    # thriving treatment's 42-53. An arm that died cannot have outlasted one
+    # that did not, so lifespan only breaks the tie when both reach the end.
+    if evolved_persistence != random_persistence:
+        outlasts = evolved_persistence > random_persistence
+        detail = (
+            f"population persisted {evolved_persistence:.0f} steps "
+            f"vs random {random_persistence:.0f}"
+        )
+        value = evolved_persistence - random_persistence
+    else:
+        evolved_lifespan, random_lifespan = lifespan(treatment), lifespan(random_control)
+        outlasts = evolved_lifespan > random_lifespan
+        detail = (
+            f"both arms reached the end; mean lifespan {evolved_lifespan:.2f} "
+            f"vs random {random_lifespan:.2f}"
+        )
+        value = evolved_lifespan - random_lifespan
 
     criteria = [
-        Criterion(
-            "outlives_random_baseline",
-            evolved > random_lifespan,
-            f"mean lifespan {evolved:.2f} vs random {random_lifespan:.2f}",
-            evolved - random_lifespan,
-        ),
+        Criterion("outlasts_random_baseline", outlasts, detail, value),
         Criterion(
             "population_does_not_collapse",
             survived >= max(1, len(treatment) // 2),
-            f"{survived}/{len(treatment)} runs still populated at the end",
+            f"{survived}/{len(treatment)} runs still populated at the end "
+            f"(random: {random_survived}/{len(random_control)})",
             float(survived),
         ),
     ]
