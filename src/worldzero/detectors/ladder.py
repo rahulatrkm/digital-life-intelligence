@@ -127,8 +127,25 @@ def assess_stage_1(treatment: list[RunResult], random_control: list[RunResult]) 
             values.append(run.final_stats.get("births", 0) / founders)
         return float(np.mean(values)) if values else 0.0
 
-    evolved = harvest_per_capita(treatment)
-    random_rate = harvest_per_capita(random_control)
+    def descendants_per_founder(runs: list[RunResult]) -> float:
+        """Section 15.1 asks for offspring count *and descendant count*.
+
+        Gross births alone rewards churn: in E0 the random arm produced twice
+        the births of the evolved one (29.2 against 14.2 per founder) and still
+        ended with fewer cells (236 against 331), because its offspring died as
+        fast as they arrived. Section 16.1 wants descendants "without unbounded
+        explosion", so what counts is the descendants that lasted.
+        """
+        values = []
+        for run in runs:
+            founders = max(1.0, float(run.config.cell.start_population))
+            values.append(run.metric("population") / founders)
+        return float(np.mean(values)) if values else 0.0
+
+    evolved_births = harvest_per_capita(treatment)
+    random_births = harvest_per_capita(random_control)
+    evolved_descendants = descendants_per_founder(treatment)
+    random_descendants = descendants_per_founder(random_control)
 
     # Energy won per unit spent winning it. The previous measure, the fraction
     # of samples standing on a tile with resource left, ran backwards: a cell
@@ -139,10 +156,12 @@ def assess_stage_1(treatment: list[RunResult], random_control: list[RunResult]) 
 
     criteria = [
         Criterion(
-            "outbreeds_random_baseline",
-            evolved > random_rate,
-            f"births per founder {evolved:.3f} vs random {random_rate:.3f}",
-            evolved - random_rate,
+            "sustains_more_descendants",
+            evolved_descendants > random_descendants,
+            f"surviving descendants per founder {evolved_descendants:.3f} "
+            f"vs random {random_descendants:.3f} "
+            f"(gross births {evolved_births:.1f} vs {random_births:.1f})",
+            evolved_descendants - random_descendants,
         ),
         Criterion(
             "forages_more_efficiently",

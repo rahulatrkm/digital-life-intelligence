@@ -39,8 +39,8 @@ def _run(
 def test_efficient_forager_is_not_penalised_for_eating() -> None:
     """The previous measure counted time standing on tiles that still had food,
     so a cell that ate the tile scored as though it had never found it."""
-    good = [_run("treatment", births=1000, population=150.0, efficiency=2.0) for _ in range(3)]
-    poor = [_run("random", births=400, population=150.0, efficiency=0.5) for _ in range(3)]
+    good = [_run("treatment", births=1000, population=180.0, efficiency=2.0) for _ in range(3)]
+    poor = [_run("random", births=400, population=120.0, efficiency=0.5) for _ in range(3)]
 
     result = assess_stage_1(good, poor)
     forages = next(c for c in result.criteria if c.name == "forages_more_efficiently")
@@ -55,21 +55,34 @@ def test_extinct_arm_does_not_inflate_births_per_capita() -> None:
     extinct = [_run("random", births=400, population=0.0) for _ in range(3)]
 
     result = assess_stage_1(living, extinct)
-    outbreeds = next(c for c in result.criteria if c.name == "outbreeds_random_baseline")
+    sustains = next(c for c in result.criteria if c.name == "sustains_more_descendants")
 
-    assert outbreeds.passed, outbreeds.detail
-    assert outbreeds.value > 0
+    assert sustains.passed, sustains.detail
+    assert sustains.value > 0
 
 
-def test_births_per_capita_is_a_rate_not_a_total() -> None:
+def test_churn_does_not_beat_a_sustained_population() -> None:
+    """Section 16.1 wants descendants "without unbounded explosion". In E0 the
+    random arm produced twice the births and ended with fewer cells."""
+    steady = [_run("treatment", births=2800, population=331.0, efficiency=1.2) for _ in range(3)]
+    churning = [_run("random", births=5800, population=236.0, efficiency=1.0) for _ in range(3)]
+
+    result = assess_stage_1(steady, churning)
+    sustains = next(c for c in result.criteria if c.name == "sustains_more_descendants")
+
+    assert sustains.passed, sustains.detail
+    assert "gross births" in sustains.detail, "both measures should be reported"
+
+
+def test_founder_count_normalises_the_rate() -> None:
     few = [_run("treatment", births=200, population=100.0, founders=200)]
     many = [_run("random", births=200, population=100.0, founders=50)]
 
     result = assess_stage_1(few, many)
-    outbreeds = next(c for c in result.criteria if c.name == "outbreeds_random_baseline")
+    sustains = next(c for c in result.criteria if c.name == "sustains_more_descendants")
 
-    # Same births, but the arm with fewer founders achieved more per founder.
-    assert not outbreeds.passed
+    # Same survivors, but the arm with fewer founders achieved more per founder.
+    assert not sustains.passed
 
 
 def test_missing_runs_report_unavailable() -> None:
