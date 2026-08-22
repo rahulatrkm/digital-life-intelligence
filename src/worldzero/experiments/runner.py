@@ -32,6 +32,7 @@ from worldzero.metrics.traces import BehaviorTrace
 from worldzero.results import RunResult
 from worldzero.storage.checkpoints import save_checkpoint
 from worldzero.storage.events import EventLog, EventType
+from worldzero.storage.progress import ProgressReporter
 from worldzero.storage.run_dir import RunDirectory
 
 
@@ -108,11 +109,14 @@ class ExperimentRunner:
         write_events: bool = True,
         keep_traces: bool = True,
         verbose: bool = False,
+        progress: ProgressReporter | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.write_events = write_events
         self.keep_traces = keep_traces
         self.verbose = verbose
+        # A no-op reporter keeps the call sites free of None checks.
+        self.progress = progress or ProgressReporter(None)
 
     # -- one world ------------------------------------------------------------
 
@@ -133,6 +137,16 @@ class ExperimentRunner:
         run_dir = RunDirectory.create(self.output_dir, run_id)
         run_dir.write_provenance(config, seed)
         config.to_yaml(run_dir.config_path)
+
+        self.progress.update(
+            force=True,
+            phase=f"{config.name}/{label}",
+            label=label,
+            seed=seed,
+            step=0,
+            max_steps=steps,
+            population=0,
+        )
 
         event_log = None
         if self.write_events:
@@ -164,6 +178,7 @@ class ExperimentRunner:
 
                 if world.timestep % max(1, config.logging.metrics_interval) == 0:
                     metrics.compute(world, trace)
+                    self.progress.update(step=world.timestep, population=world.population)
                 if (
                     config.logging.checkpoint_interval
                     and world.timestep % config.logging.checkpoint_interval == 0
@@ -204,6 +219,7 @@ class ExperimentRunner:
 
         run_dir.write_json("summary.json", result.to_dict())
         self._write_metric_series(run_dir, metrics)
+        self.progress.run_finished()
         if self.verbose:
             print(
                 f"  {label:<20} seed {seed:<6} "
@@ -275,6 +291,13 @@ class ExperimentRunner:
 
         config = spec.build_config()
         steps = steps or config.stop.max_steps
+
+        arms = 1 + len(spec.controls)
+        self.progress.update(
+            force=True,
+            experiment=spec.experiment_id,
+            runs_total=max(self.progress.progress.runs_total, arms * len(seeds)),
+        )
 
         treatment = [
             self.run_world(config, label="treatment", seed=seed, steps=steps) for seed in seeds

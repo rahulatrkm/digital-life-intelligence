@@ -25,6 +25,12 @@ from worldzero.experiments.controls import CONTROLS, apply_control, describe_con
 from worldzero.experiments.runner import ExperimentRunner
 from worldzero.experiments.suite import SUITE, get_experiment
 from worldzero.storage.checkpoints import load_checkpoint, save_checkpoint
+from worldzero.storage.progress import (
+    ProgressReporter,
+    format_progress,
+    read_progress,
+    serve,
+)
 from worldzero.viz.render import plot_metrics, render_metrics, render_world, replay_summary
 
 #: Series worth plotting by default: population and lifespan show whether the
@@ -123,24 +129,36 @@ def seed_list(args: argparse.Namespace) -> list[int]:
 # -- commands -----------------------------------------------------------------
 
 
+def _reporter(args: argparse.Namespace, command: str) -> ProgressReporter:
+    """Progress lands in the output directory unless redirected."""
+    path = getattr(args, "progress", None) or Path(args.output) / "progress.json"
+    return ProgressReporter(path, command=command)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """One instrumented world: events, metrics, checkpoints, summary."""
     config = build_config(args)
-    runner = ExperimentRunner(
-        args.output,
-        write_events=not args.no_events,
-        keep_traces=True,
-        verbose=False,
-    )
-    print(f"world '{config.name}'  seed {config.world.seed}  fingerprint {config.fingerprint()}")
-    print(f"  {config.world.width}x{config.world.height}  {config.stop.max_steps} steps  "
-          f"resources={config.resources.regime}  hazards={config.hazards.regime}  "
-          f"stage={config.cell.max_sensor_stage}")
-    active = config.controls.active()
-    if active:
-        print(f"  controls: {', '.join(active)}")
+    with _reporter(args, "run") as progress:
+        progress.update(runs_total=1, experiment=config.name)
+        runner = ExperimentRunner(
+            args.output,
+            write_events=not args.no_events,
+            keep_traces=True,
+            verbose=False,
+            progress=progress,
+        )
+        print(
+            f"world '{config.name}'  seed {config.world.seed}  "
+            f"fingerprint {config.fingerprint()}"
+        )
+        print(f"  {config.world.width}x{config.world.height}  {config.stop.max_steps} steps  "
+              f"resources={config.resources.regime}  hazards={config.hazards.regime}  "
+              f"stage={config.cell.max_sensor_stage}")
+        active = config.controls.active()
+        if active:
+            print(f"  controls: {', '.join(active)}")
 
-    result = runner.run_world(config, label=args.label, seed=config.world.seed)
+        result = runner.run_world(config, label=args.label, seed=config.world.seed)
 
     print(f"\nfinished {result.steps} steps in {result.wallclock_seconds:.1f}s")
     if result.extinct_at is not None:
@@ -181,14 +199,16 @@ def cmd_experiment(args: argparse.Namespace) -> int:
     # run_experiment calls spec.build_config() itself, so CLI overrides have to
     # be folded into the spec rather than passed alongside it.
     spec = _spec_with_overrides(get_experiment(args.experiment_id), collect_overrides(args))
-    runner = ExperimentRunner(
-        args.output,
-        write_events=not args.no_events,
-        keep_traces=True,
-        verbose=True,
-    )
+    with _reporter(args, f"experiment {spec.experiment_id}") as progress:
+        runner = ExperimentRunner(
+            args.output,
+            write_events=not args.no_events,
+            keep_traces=True,
+            verbose=True,
+            progress=progress,
+        )
+        report = runner.run_experiment(spec, seed_list(args))
 
-    report = runner.run_experiment(spec, seed_list(args))
     print(f"\nresult: {'PASS' if report.passed else 'FAIL'}")
     print(f"outputs: {Path(args.output) / f'{spec.experiment_id}-report'}")
     return 0 if report.passed else 1
@@ -211,21 +231,29 @@ def cmd_suite(args: argparse.Namespace) -> int:
         return 2
 
     overrides = collect_overrides(args)
-    runner = ExperimentRunner(
-        args.output,
-        write_events=not args.no_events,
-        keep_traces=True,
-        verbose=True,
-    )
     seeds = seed_list(args)
 
     reports = []
     detections = []
-    for experiment_id in ids:
-        spec = _spec_with_overrides(get_experiment(experiment_id), overrides)
-        report = runner.run_experiment(spec, seeds)
-        reports.append(report)
-        detections.extend(report.detections)
+    with _reporter(args, f"suite {','.join(ids)}") as progress:
+        runner = ExperimentRunner(
+            args.output,
+            write_events=not args.no_events,
+            keep_traces=True,
+            verbose=True,
+            progress=progress,
+        )
+        total = sum((1 + len(SUITE[e].controls)) * len(seeds) for e in ids)
+        progress.update(runs_total=total)
+
+        for index, experiment_id in enumerate(ids, start=1):
+            spec = _spec_with_overrides(get_experiment(experiment_id), overrides)
+            progress.update(
+                force=True, phase=f"{experiment_id} ({index}/{len(ids)})", experiment=experiment_id
+            )
+            report = runner.run_experiment(spec, seeds)
+            reports.append(report)
+            detections.extend(report.detections)
 
     ladder = build_ladder(detections)
     print("\n" + "=" * 72)
@@ -285,6 +313,23 @@ def cmd_replay(args: argparse.Namespace) -> int:
         return 2
     print(json.dumps(replay_summary(args.events, limit=args.limit), indent=2, sort_keys=True))
     return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Answer "is it running?" without attaching to the process."""
+    path = Path(args.progress)
+    if args.serve:
+        serve(path, args.serve, host=args.host)
+        return 0
+
+    if not path.exists():
+        print(f"no progress file: {path}", file=sys.stderr)
+        return 2
+
+    data = read_progress(path)
+    print(json.dumps(data, indent=2, sort_keys=True) if args.json else format_progress(data))
+    # Non-zero when the run is not alive, so a watchdog can act on the code.
+    return 0 if data["alive"] else 1
 
 
 def cmd_inspect(args: argparse.Namespace) -> int:
@@ -383,6 +428,10 @@ def _add_world_options(parser: argparse.ArgumentParser) -> None:
 def _add_output_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-o", "--output", default="outputs", help="run output directory")
     parser.add_argument("--no-events", action="store_true", help="skip the JSONL event log")
+    parser.add_argument(
+        "--progress",
+        help="progress file to write (default: <output>/progress.json)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -450,6 +499,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     listing = sub.add_parser("list", help="list experiments and controls")
     listing.set_defaults(func=cmd_list)
+
+    status = sub.add_parser("status", help="report whether a run is alive")
+    status.add_argument(
+        "progress",
+        nargs="?",
+        default="outputs/progress.json",
+        help="path to a progress.json written by run/experiment/suite",
+    )
+    status.add_argument("--json", action="store_true", help="emit raw JSON")
+    status.add_argument("--serve", type=int, metavar="PORT", help="serve status over HTTP")
+    status.add_argument("--host", default="127.0.0.1", help="bind address for --serve")
+    status.set_defaults(func=cmd_status)
 
     config = sub.add_parser("config", help="print or write a resolved config")
     config.add_argument("-c", "--config", help="YAML config file to start from")
