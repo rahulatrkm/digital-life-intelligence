@@ -17,6 +17,7 @@ import json
 import os
 import platform
 import socket
+import threading
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -25,6 +26,11 @@ from typing import Any
 
 #: A run that has not refreshed for this long is presumed dead rather than busy.
 STALE_AFTER_SECONDS = 120.0
+
+#: How often the background thread touches the file. Liveness has to be
+#: reported on its own schedule: a single world can run for minutes, so a file
+#: refreshed only when work completes makes a healthy job look stale.
+HEARTBEAT_SECONDS = 15.0
 
 
 def _utc() -> str:
@@ -71,15 +77,40 @@ class ProgressReporter:
         *,
         command: str = "",
         min_interval: float = 2.0,
+        heartbeat: float = HEARTBEAT_SECONDS,
     ) -> None:
         self.path = Path(path) if path is not None else None
         self.min_interval = min_interval
+        self.heartbeat = heartbeat
         self.progress = Progress(command=command)
         self._started = time.perf_counter()
         self._last_write = 0.0
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
         if self.path is not None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.write(force=True)
+
+    def start_heartbeat(self) -> None:
+        if self.path is None or self.heartbeat <= 0 or self._thread is not None:
+            return
+        self._thread = threading.Thread(target=self._beat, daemon=True, name="wz-heartbeat")
+        self._thread.start()
+
+    def stop_heartbeat(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    def _beat(self) -> None:
+        while not self._stop.wait(self.heartbeat):
+            # Reporting must never take the run down with it.
+            try:
+                self.write(force=True)
+            except OSError:
+                continue
 
     def update(self, *, force: bool = False, **fields: Any) -> None:
         for key, value in fields.items():
@@ -99,22 +130,39 @@ class ProgressReporter:
     def write(self, *, force: bool = False) -> None:
         if self.path is None:
             return
-        now = time.perf_counter()
-        if not force and now - self._last_write < self.min_interval:
-            return
-        self._last_write = now
+        with self._lock:
+            now = time.perf_counter()
+            if not force and now - self._last_write < self.min_interval:
+                return
+            self._last_write = now
 
-        self.progress.updated_utc = _utc()
-        self.progress.elapsed_seconds = round(now - self._started, 2)
-        self.progress.eta_seconds = self._eta()
+            self.progress.updated_utc = _utc()
+            self.progress.elapsed_seconds = round(now - self._started, 2)
+            self.progress.eta_seconds = self._eta()
 
-        # Write beside the target then replace, so a poller never sees a
-        # partially written file.
-        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(self.progress.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
-        )
-        os.replace(temporary, self.path)
+            # Write beside the target then replace, so a poller never sees a
+            # partially written file.
+            temporary = self.path.with_suffix(self.path.suffix + f".{os.getpid()}.tmp")
+            temporary.write_text(
+                json.dumps(self.progress.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
+            )
+            self._replace(temporary)
+
+    def _replace(self, temporary: Path, attempts: int = 5) -> None:
+        """Windows refuses to replace a file another handle has open, so a
+        reader polling the status can collide with a write. Retry briefly, then
+        drop this update: a missed refresh is recoverable, a crashed run is not.
+        """
+        assert self.path is not None
+        for attempt in range(attempts):
+            try:
+                os.replace(temporary, self.path)
+                return
+            except PermissionError:
+                if attempt == attempts - 1:
+                    temporary.unlink(missing_ok=True)
+                    return
+                time.sleep(0.02 * (attempt + 1))
 
     def _eta(self) -> float | None:
         done, total = self.progress.runs_done, self.progress.runs_total
@@ -126,9 +174,11 @@ class ProgressReporter:
     def __enter__(self) -> ProgressReporter:
         self.progress.status = "running"
         self.write(force=True)
+        self.start_heartbeat()
         return self
 
     def __exit__(self, exc_type, exc, _traceback) -> None:
+        self.stop_heartbeat()
         if exc_type is None:
             self.finish("finished")
         else:

@@ -9,6 +9,7 @@ be detectable from the outside.
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -98,7 +99,36 @@ def test_no_path_is_a_silent_no_op() -> None:
     reporter = ProgressReporter(None)
     reporter.update(step=3)
     reporter.run_finished()
+    reporter.start_heartbeat()
     reporter.finish()
+
+
+def test_heartbeat_refreshes_while_work_is_slow(tmp_path) -> None:
+    """Liveness must not depend on work completing.
+
+    A single world can run for minutes; a file refreshed only when a run
+    finishes makes a healthy job cross the staleness threshold and read as dead.
+    """
+    path = tmp_path / "progress.json"
+    with ProgressReporter(path, heartbeat=0.05) as reporter:
+        first = read_progress(path)["updated_utc"]
+        time.sleep(0.3)  # no work completes in this window
+        second = read_progress(path)["updated_utc"]
+        assert reporter.progress.runs_done == 0
+
+    assert second > first, "heartbeat did not refresh the file"
+
+
+def test_a_polling_reader_cannot_break_the_writer(tmp_path) -> None:
+    """Windows refuses to replace a file another handle has open, so a status
+    poller must not be able to crash the run it is watching."""
+    path = tmp_path / "progress.json"
+    with ProgressReporter(path, heartbeat=0.01) as reporter:
+        for _ in range(60):
+            read_progress(path)
+            reporter.update(step=1, force=True)
+
+    assert read_progress(path)["status"] == "finished"
 
 
 def test_format_is_human_readable(tmp_path) -> None:
