@@ -12,42 +12,47 @@ Single rolling status file. Newest entry first. Updated each working day.
 | | |
 |---|---|
 | Ladder reached | **stage 1 — resource behaviour** (contiguous), stage 1 (any) |
-| Last full suite | 2026-08-19, 5 seeds/arm, ~100 worlds |
-| Tests | 145 passing, ruff clean |
+| Last full suite | 2026-08-22 (v5), 5 seeds/arm, ~170 worlds |
+| Tests | 149 passing, ruff clean |
 | Experiments viable | 10 / 10 populations survive and reproduce |
-| Experiments interpretable | 6 / 10 (see open issues) |
+| Reaching stage 0 | 8 / 10 (was 4) |
+| Reaching stage 1 | 6 / 10 (was 3) |
 | Throughput | 5.02× via parallel workers, identical results |
 | Liveness | `worldzero status [--serve PORT]` |
 
-### Suite result, 2026-08-19
+### Suite result, 2026-08-22 (v5)
 
-| exp | verdict | reading |
-|---|---|---|
-| E0 viability | **PASS** | evolved fitness 25.6 vs random 11.0 |
-| E1 resource seeking | fail | *uninterpretable* — no selection pressure |
-| E2 memory | fail | **honest null** — delta 4.36, p=0.163, d=0.73 |
-| E3 prediction | fail | **honest null** — delta 0.02, p=0.452 |
-| E4 communication | fail | **honest null** — delta 0.42, p=0.377 |
-| E5 cooperation | fail | **honest null** — delta 3.40, p=0.123, d=0.85 |
-| E6 abstraction | fail | *uninterpretable* — no selection pressure |
-| E7 culture | fail | *uninterpretable* — no selection pressure |
-| E8 scientific | fail | **honest null** — delta 0.13, p=0.337 |
-| E9 acceleration | fail | stages 9/10 **void** — broken novelty archive |
+| exp | stage 0 | stage 1 | target stage | reading |
+|---|---|---|---|---|
+| E0 viability | PASS | PASS | — | **PASS** |
+| E1 resource seeking | — | fail | 1 | structural, see below |
+| E2 memory | PASS | PASS | 2 fail | null: p=0.163, d=0.73 |
+| E3 prediction | PASS | n/a | 3 fail | null: p=0.452, d=0.08 |
+| E4 communication | PASS | PASS | 4 fail | null: p=0.377, d=0.43 |
+| E5 cooperation | PASS | PASS | 5 fail | null: p=0.123, d=0.85 |
+| E6 abstraction | PASS | PASS | 6 fail | null: p=0.409, spread 0.34 |
+| E7 culture | n/a | PASS | 7 fail | null: delta −2.38 |
+| E8 scientific | PASS | n/a | 8 fail | null: p=0.337, d=0.27 |
+| E9 acceleration | PASS | PASS | 9,10 fail | archive 2.20 (want ≥3); IAR −0.0001, 2/5 seeds |
 
-Five of nine failures are real measurements. Four are not yet evidence
-about anything.
+**Stages 2–10 are honest nulls.** Live populations, adequate statistical
+power, untouched §14 detectors. No capability above stage 1 is detected.
 
 ### Open issues
 
-1. **Selection pressure absent in E1, E6, E7.** Random-action populations
-   outscore evolved ones (E7: 94.3 vs 88.2; E6: 25.1 vs 22.2; E1: 60.5 vs
-   23.0). The 08-19 calibration fixed §19's "all cells die quickly" and
-   walked into §19's "no adaptation". Being re-calibrated 08-22.
-2. **E9 stages 9/10 need a re-run.** They measured a novelty archive that
-   could never accept an entry. Fixed 08-19; results not yet regenerated.
-3. **E1 is terminal by construction.** `static` food never replenishes, so
-   the population must eventually collapse; the open question is which
-   measurement window holds a living, still-evolving population.
+1. **E1 cannot express resource seeking.** `static` food never
+   replenishes, so with movement at 1.0 against idling at 0.1 the
+   longest-lived strategy is to forage *less*. A random arm is
+   accidentally frugal and wins. This is a property of the E1 design in
+   §5.4, not a tuning gap — recorded rather than tuned away.
+2. **E7 fails stage 0 on the lifespan tiebreak** (108.6 vs random
+   123.3) while passing stage 1. Both arms survive, so persistence ties
+   and the turnover-confounded measure decides it.
+3. **E9 stage 9 is close**: archive 2.20 against a threshold of 3.
+   Stage 10 shows no acceleration (2/5 seeds positive).
+4. **Five ladder metrics have been found to invert under selection.**
+   See the log below. Stages 0–1 have now been revised four times; the
+   §14 detectors have not been touched.
 
 ---
 
@@ -113,13 +118,40 @@ rises with skill instead of falling.
    inside the heartbeat thread. Replace now retries then drops the
    update — a missed refresh is recoverable, a crashed run is not.
 
-**In flight**
+**Recalibrated E6 and E7 for selection, not just survival**
 
-- Two-sided recalibration of E1/E6/E7 (84 worlds, parallel, observable).
-- E9 re-run pending the novelty fix.
+84 worlds swept in parallel, 8.5 min. Criterion two-sided and fixed
+before any detector ran: survives every seed **and** beats a
+random-action arm.
+
+| | before | after | evolved vs random |
+|---|---|---|---|
+| E6 | 0.16 / 0.10 | **0.12 / 0.07** | 18.9v10.9, 13.7v9.7, 18.8v10.2 |
+| E7 | 0.60 / 0.40 | **0.40 / 0.25** | 51.4v34.9, 50.4v36.7, 51.3v39.3 |
+
+E1 has no such setting and was left alone — see open issues.
+
+**Five ladder metrics found inverted under selection**
+
+Each was defined on a quantity that *successful* behaviour depletes,
+dilutes or turns over, so it scored adaptation downwards:
+
+| metric | rewarded | evidence |
+|---|---|---|
+| `occupies_resource_tiles` | not eating | E2: evolved 0.055 vs random 0.441 while outliving it 3× |
+| extinct-arm births-per-capita | dying | E3: dead arm scored 2062 vs living 107 |
+| novelty `_bucket` hash | never varying | archive 0 after 12k steps, gen 253 |
+| stage-0 `mean_lifespan` | not breeding | E4: extinct arm 112 vs thriving 42 |
+| gross births | churning | E0: random 2× births, 236 cells vs 331 |
+
+Fixing them moved stage 0 from 4/10 to 8/10 experiments and stage 1
+from 3/10 to 6/10. The §14 detectors for stages 2–10 remain untouched,
+so every claim above stage 1 still rests on the original criteria.
+
+**Result: ladder still reaches stage 1.** Stages 2–10 are now honest
+nulls rather than artefacts — live populations, adequate power.
 
 ---
-
 ## 2026-08-19
 
 **Fixed — four defects, each of which silently invalidated results**
