@@ -206,6 +206,7 @@ def cmd_experiment(args: argparse.Namespace) -> int:
             keep_traces=True,
             verbose=True,
             progress=progress,
+            workers=args.workers,
         )
         report = runner.run_experiment(spec, seed_list(args))
 
@@ -242,6 +243,7 @@ def cmd_suite(args: argparse.Namespace) -> int:
             keep_traces=True,
             verbose=True,
             progress=progress,
+            workers=args.workers,
         )
         total = sum((1 + len(SUITE[e].controls)) * len(seeds) for e in ids)
         progress.update(runs_total=total)
@@ -434,6 +436,15 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_worker_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="parallel worlds; 0 auto-detects (runs are independent by design)",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="worldzero",
@@ -481,6 +492,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_world_options(experiment)
     _add_output_options(experiment)
+    _add_worker_options(experiment)
     experiment.set_defaults(func=cmd_experiment)
 
     suite = sub.add_parser("suite", help="run the full E0-E9 ladder")
@@ -495,6 +507,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_world_options(suite)
     _add_output_options(suite)
+    _add_worker_options(suite)
     suite.set_defaults(func=cmd_suite)
 
     listing = sub.add_parser("list", help="list experiments and controls")

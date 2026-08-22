@@ -17,7 +17,10 @@ runs have finished.
 
 from __future__ import annotations
 
+import os
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -99,6 +102,31 @@ class ExperimentReport:
         return lines
 
 
+def resolve_workers(requested: int | None) -> int:
+    """0 or None means "use the machine", leaving one core for everything else."""
+    if requested and requested > 0:
+        return requested
+    return max(1, min(8, (os.cpu_count() or 2) - 1))
+
+
+def _run_world_task(payload: tuple[Any, ...]) -> RunResult:
+    """Worker entry point. Must be module level so it can be pickled.
+
+    Section 11.2 requires that parallel execution not change biological
+    outcomes, which holds here because a run is fully determined by its config
+    and seed: every cell-level draw comes from a stream keyed on that cell's
+    identity rather than a shared cursor, so nothing depends on scheduling.
+    """
+    output_dir, config, label, seed, steps, write_events, keep_traces = payload
+    runner = ExperimentRunner(
+        output_dir,
+        write_events=write_events,
+        keep_traces=keep_traces,
+        verbose=False,
+    )
+    return runner.run_world(config, label=label, seed=seed, steps=steps)
+
+
 class ExperimentRunner:
     """Runs single worlds, control sets and whole experiments."""
 
@@ -110,6 +138,7 @@ class ExperimentRunner:
         keep_traces: bool = True,
         verbose: bool = False,
         progress: ProgressReporter | None = None,
+        workers: int | None = 1,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.write_events = write_events
@@ -117,6 +146,7 @@ class ExperimentRunner:
         self.verbose = verbose
         # A no-op reporter keeps the call sites free of None checks.
         self.progress = progress or ProgressReporter(None)
+        self.workers = resolve_workers(workers)
 
     # -- one world ------------------------------------------------------------
 
@@ -248,6 +278,69 @@ class ExperimentRunner:
 
     # -- batches --------------------------------------------------------------
 
+    def run_many(
+        self,
+        jobs: list[tuple[SimulationConfig, str, int]],
+        *,
+        steps: int | None = None,
+    ) -> list[RunResult]:
+        """Run independent worlds, in parallel when workers allow.
+
+        Results come back in submission order regardless of completion order, so
+        a parallel run and a sequential one produce the same list.
+        """
+        if self.workers <= 1 or len(jobs) <= 1:
+            return [
+                self.run_world(config, label=label, seed=seed, steps=steps)
+                for config, label, seed in jobs
+            ]
+
+        payloads = [
+            (
+                str(self.output_dir),
+                config,
+                label,
+                seed,
+                steps,
+                self.write_events,
+                self.keep_traces,
+            )
+            for config, label, seed in jobs
+        ]
+
+        results: list[RunResult | None] = [None] * len(payloads)
+        try:
+            with ProcessPoolExecutor(max_workers=min(self.workers, len(payloads))) as pool:
+                futures = {
+                    pool.submit(_run_world_task, payload): index
+                    for index, payload in enumerate(payloads)
+                }
+                for future in as_completed(futures):
+                    index = futures[future]
+                    result = future.result()
+                    results[index] = result
+                    self.progress.run_finished()
+                    if self.verbose:
+                        print(
+                            f"  {result.label:<20} seed {result.seed:<6} "
+                            f"pop {result.metric('population'):>6.0f}  "
+                            f"gen {result.metric('max_generation'):>4.0f}  "
+                            f"fitness {result.fitness():.4f}  "
+                            f"({result.wallclock_seconds:.1f}s)"
+                        )
+        except BrokenProcessPool as exc:
+            # Nearly always the Windows spawn footgun: workers re-import the
+            # calling module, so module-level code runs once per worker. The
+            # default message names neither the cause nor the fix.
+            raise RuntimeError(
+                "Parallel workers died. On Windows and macOS a worker re-imports "
+                "the module that started it, so a script calling ExperimentRunner "
+                "must put its work behind `if __name__ == \"__main__\":` -- "
+                "otherwise every worker re-runs the script itself. "
+                "Pass workers=1 to run sequentially instead."
+            ) from exc
+        return [r for r in results if r is not None]
+
     def run_batch(
         self,
         configs: list[SimulationConfig],
@@ -257,11 +350,8 @@ class ExperimentRunner:
         steps: int | None = None,
     ) -> list[RunResult]:
         """Whitepaper section 10.1: many independent worlds, different seeds."""
-        results: list[RunResult] = []
-        for config in configs:
-            for seed in seeds:
-                results.append(self.run_world(config, label=label, seed=seed, steps=steps))
-        return results
+        jobs = [(config, label, seed) for config in configs for seed in seeds]
+        return self.run_many(jobs, steps=steps)
 
     def run_controls(
         self,
@@ -271,14 +361,17 @@ class ExperimentRunner:
         *,
         steps: int | None = None,
     ) -> dict[str, list[RunResult]]:
-        out: dict[str, list[RunResult]] = {}
+        jobs: list[tuple[SimulationConfig, str, int]] = []
         for name in control_names:
             if name not in CONTROLS:
                 raise ValueError(f"Unknown control '{name}'")
             controlled = apply_control(config, name)
-            out[name] = [
-                self.run_world(controlled, label=name, seed=seed, steps=steps) for seed in seeds
-            ]
+            jobs.extend((controlled, name, seed) for seed in seeds)
+
+        results = self.run_many(jobs, steps=steps)
+        out: dict[str, list[RunResult]] = {name: [] for name in control_names}
+        for (_, name, _), result in zip(jobs, results, strict=True):
+            out[name].append(result)
         return out
 
     def run_experiment(
@@ -299,10 +392,27 @@ class ExperimentRunner:
             runs_total=max(self.progress.progress.runs_total, arms * len(seeds)),
         )
 
-        treatment = [
-            self.run_world(config, label="treatment", seed=seed, steps=steps) for seed in seeds
+        # Every arm goes into one pool: the control runs are as independent as
+        # the treatment ones, and submitting them together keeps all the cores
+        # busy instead of draining the pool once per arm.
+        jobs: list[tuple[SimulationConfig, str, int]] = [
+            (config, "treatment", seed) for seed in seeds
         ]
-        controls = self.run_controls(config, list(spec.controls), seeds, steps=steps)
+        for name in spec.controls:
+            if name not in CONTROLS:
+                raise ValueError(f"Unknown control '{name}'")
+            controlled = apply_control(config, name)
+            jobs.extend((controlled, name, seed) for seed in seeds)
+
+        results = self.run_many(jobs, steps=steps)
+
+        treatment: list[RunResult] = []
+        controls: dict[str, list[RunResult]] = {name: [] for name in spec.controls}
+        for (_, label, _), result in zip(jobs, results, strict=True):
+            if label == "treatment":
+                treatment.append(result)
+            else:
+                controls[label].append(result)
 
         detections = [
             d
