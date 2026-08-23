@@ -66,11 +66,27 @@ power, untouched §14 detectors. No capability above stage 1 is detected.
 
 ## 2026-08-23
 
-**Automated suite run did not produce results.**
+**Automated suite run.**
 
-```
-no summary at C:\digital-life-intelligence\outputs\daily\suite-summary.json
-```
+| | |
+|---|---|
+| Ladder (contiguous) | **stage 1 — resource behaviour** |
+| Ladder (any) | stage 1 |
+| Seeds per arm | 5 |
+| Experiments passing | 1 / 10 |
+
+| exp | stage 0 | stage 1 | target | detail |
+|---|---|---|---|---|
+| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
+| E1 Resource seeking | fail | fail | 1 fail | surviving descendants per founder 0.385 vs random 0.856 (gross births 3.8 vs 2.0) |
+| E2 Memory pressure | PASS | PASS | 2 fail | fitness delta 4.3610, p=0.1627, d=0.727 |
+| E3 Prediction pressure | PASS | fail | 3 fail | insufficient paired samples |
+| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta 0.4174, p=0.3770, d=0.434 |
+| E5 Cooperation pressure | PASS | PASS | 5 fail | fitness delta 3.3998, p=0.1230, d=0.847 |
+| E6 Abstraction pressure | PASS | PASS | 6 fail | relative spread of outcome across signatures = 0.3429 (want < 0.25) |
+| E7 Culture pressure | fail | PASS | 7 fail | fitness delta -2.3826, p=0.6230, d=-0.439 |
+| E8 Scientific behaviour pressure | PASS | fail | 8 fail | fitness delta 0.1295, p=0.3373, d=0.270 |
+| E9 Intelligence acceleration | PASS | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000104 |
 
 ---
 ## 2026-08-22
