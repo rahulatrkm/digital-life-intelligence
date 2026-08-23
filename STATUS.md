@@ -23,8 +23,9 @@ from "something broke".
 | Experiments viable | 10 / 10 populations survive and reproduce |
 | Reaching stage 0 | 8 / 10 (was 4) |
 | Reaching stage 1 | 6 / 10 (was 3) |
-| Throughput | 5.02× via parallel workers, identical results |
+| Throughput | 5.02× parallel × 1.16× per-step ≈ **5.8×** |
 | Liveness | `worldzero status [--serve PORT]` |
+| Suite wall-clock | ~48 min (E9 is 71–75% of it; E0–E8 is ~12 min) |
 
 ### Suite result, 2026-08-22 (v5)
 
@@ -43,6 +44,26 @@ from "something broke".
 
 **Stages 2–10 are honest nulls.** Live populations, adequate statistical
 power, untouched §14 detectors. No capability above stage 1 is detected.
+
+### Power check, 2026-08-23 — the two best candidates are true nulls
+
+E2 memory and E5 cooperation were the only stage-2+ results with large
+effect sizes, so they looked underpowered rather than absent. Re-run at
+12 seeds they collapse:
+
+| | 3 seeds | 5 seeds | 12 seeds |
+|---|---|---|---|
+| E2 memory | d = **2.576** | d = 0.727 | d = **0.073**, p = 0.419 |
+| E5 cooperation | — | d = 0.847 | d = **0.447**, p = 0.155 |
+
+Effect size decaying toward zero as n grows is the signature of
+small-sample inflation, not of a real effect awaiting power. Memory
+content does not improve fitness in E2's environment, and groups do not
+beat isolated individuals in E5's, at these configurations.
+
+Worth recording: had the p threshold been relaxed to 0.15 instead of
+adding seeds, both would have "passed" today. Two false positives, which
+is §19's named "metric false positive" failure.
 
 ### Open issues
 
