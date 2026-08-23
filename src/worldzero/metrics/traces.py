@@ -9,7 +9,10 @@ more signal than a dense sample over a short one.
 
 from __future__ import annotations
 
+from bisect import bisect_left
+from collections import defaultdict
 from dataclasses import dataclass, field
+from math import inf
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -52,6 +55,10 @@ class BehaviorTrace:
     """(signal value, resource at emitter, hazard at emitter) for the
     communication detector's mutual-information estimate."""
     truncated: bool = False
+    _index: dict[tuple[int, int], list[tuple[int, float]]] | None = field(
+        default=None, repr=False
+    )
+    _interval: int | None = field(default=None, repr=False)
 
     def sample(self, world: World) -> None:
         if len(self.samples) >= self.max_samples:
@@ -124,19 +131,54 @@ class BehaviorTrace:
     def future_resource(self, lag: int) -> tuple[np.ndarray, np.ndarray]:
         """Pair each sample's action with the resource at its tile ``lag`` steps later.
 
-        Only pairs where a future observation actually exists are returned, so a
-        short or sparse trace yields fewer pairs rather than fabricated zeros.
+        Tiles are only recorded on sampling steps, so an exact lookup of
+        ``timestep + lag`` finds nothing unless the lag happens to be a multiple
+        of the sampling interval. The lags come from ``cue_lead_time``, which has
+        no reason to line up: at trace_interval 20 and cue_lead_time 12 the
+        detector tried lags 6, 12 and 24 and got exactly zero pairs every time,
+        so the criterion could never fire whatever the population did.
+
+        The nearest recorded observation at or after the target is used instead,
+        within one sampling interval, which is the resolution the trace has.
         """
+        index = self._tile_index()
+        tolerance = max(1, self._sampling_interval())
+
         actions: list[int] = []
         futures: list[float] = []
         for sample in self.samples:
-            key = (sample.timestep + lag, sample.x, sample.y)
-            future = self.tile_future.get(key)
-            if future is None:
+            history = index.get((sample.x, sample.y))
+            if not history:
+                continue
+            target = sample.timestep + lag
+            position = bisect_left(history, (target, -inf))
+            if position >= len(history):
+                continue
+            when, value = history[position]
+            if when - target > tolerance:
                 continue
             actions.append(sample.action)
-            futures.append(future)
+            futures.append(value)
         return np.asarray(actions, dtype=np.int64), np.asarray(futures, dtype=np.float64)
+
+    def _tile_index(self) -> dict[tuple[int, int], list[tuple[int, float]]]:
+        """Per-tile observation history, sorted by time, built once."""
+        if self._index is None:
+            index: dict[tuple[int, int], list[tuple[int, float]]] = defaultdict(list)
+            for (when, x, y), value in self.tile_future.items():
+                index[(x, y)].append((when, value))
+            for history in index.values():
+                history.sort()
+            self._index = dict(index)
+        return self._index
+
+    def _sampling_interval(self) -> int:
+        """Smallest gap between recorded steps: the trace's real time resolution."""
+        if self._interval is None:
+            steps = sorted({when for when, _, _ in self.tile_future})
+            gaps = [b - a for a, b in zip(steps, steps[1:], strict=False) if b > a]
+            self._interval = min(gaps) if gaps else 1
+        return self._interval
 
     def summary(self) -> dict[str, Any]:
         return {

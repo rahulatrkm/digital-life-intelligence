@@ -21,7 +21,6 @@ import json
 import time
 from pathlib import Path
 
-from worldzero.detectors import run_all_detectors
 from worldzero.experiments.runner import ExperimentRunner
 from worldzero.experiments.suite import get_experiment
 

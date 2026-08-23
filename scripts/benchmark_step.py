@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 import time
 
-from worldzero.experiments.suite import get_experiment
 from worldzero.core.world import World
+from worldzero.experiments.suite import get_experiment
 
 STEPS = 800
 

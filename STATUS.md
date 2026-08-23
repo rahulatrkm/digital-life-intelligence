@@ -76,6 +76,38 @@ steps, where d went 2.576 → 0.727 → 0.073 as n went 3 → 5 → 12.
 laptop" — a convenience, not a scientific bound. E3, E4, E6 and E8 all
 run at 4,000 and may be under-evolved for the same reason. Under test.
 
+### Stage 3 was never actually tested until today
+
+`acts_before_future_state` is prediction's primary evidence. It pairs each
+sampled action with the resource at the same tile `lag` steps later, by
+exact key `(timestep + lag, x, y)`. Tiles are only recorded on sampling
+steps, and the lags come from `cue_lead_time`, which need not line up:
+
+| lag tried | `lag % trace_interval` | pairs found |
+|---|---|---|
+| 6 | 6 | **0** |
+| 12 | 12 | **0** |
+| 24 | 4 | **0** |
+| *20 (aligned)* | 0 | *1,614* |
+| *40 (aligned)* | 0 | *1,195* |
+
+The criterion needs ≥50 pairs and got exactly zero, every run, at every
+length. Every "prediction not detected" result before today was vacuous
+on its main criterion.
+
+Now matched to the nearest recorded observation within one sampling
+interval. E3 at 16k steps moves from confidence 0.33 to 0.67:
+
+```
+[PASS] acts_before_future_state   (now computable)
+[fail] beats_reactive_baseline    delta -0.0364, p=0.7424, d=-0.373
+```
+
+So cells **do** act in ways correlated with future resource state, but it
+buys them nothing against the reactive baseline — a real null at last,
+rather than an unmeasured one. That is the sixth criterion found unable
+to measure what it claims.
+
 ### Power check, 2026-08-23 — two candidates were true nulls
 
 E2 memory and E5 cooperation were the only stage-2+ results with large
