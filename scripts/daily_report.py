@@ -54,6 +54,21 @@ def run_suite(replicates: int) -> tuple[bool, str]:
     return SUMMARY.exists(), completed.stdout + completed.stderr
 
 
+def stage_mark(detections: dict[int, dict], required: set[str], stage: int) -> str:
+    """PASS, fail, or n/a for a ladder stage.
+
+    A stage the experiment never claimed to test is not a failure: stages 0 and
+    1 are measured for every experiment so the ladder has a base, but only the
+    declared detectors decide its verdict.
+    """
+    found = detections.get(stage)
+    if found is None:
+        return "\u2014"
+    if found["detected"]:
+        return "PASS"
+    return "fail" if found.get("detector") in required else "n/a"
+
+
 def summarise(data: dict[str, Any]) -> list[str]:
     ladder = data.get("ladder", {})
     experiments = data.get("experiments", [])
@@ -74,11 +89,6 @@ def summarise(data: dict[str, Any]) -> list[str]:
         detections = {d["stage"]: d for d in experiment.get("detections", [])}
         required = set(experiment.get("required_detectors", []))
 
-        def mark(stage: int) -> str:
-            found = detections.get(stage)
-            if found is None:
-                return "—"
-            return "PASS" if found["detected"] else "fail"
 
         # DetectionResult serialises its name under "detector".
         target = [
@@ -94,8 +104,9 @@ def summarise(data: dict[str, Any]) -> list[str]:
             target_text = "—"
 
         lines.append(
-            f"| {experiment['experiment_id']} {experiment['name']} | {mark(0)} | "
-            f"{mark(1)} | {target_text} | {detail[:88]} |"
+            f"| {experiment['experiment_id']} {experiment['name']} | "
+            f"{stage_mark(detections, required, 0)} | "
+            f"{stage_mark(detections, required, 1)} | {target_text} | {detail[:88]} |"
         )
     return lines
 

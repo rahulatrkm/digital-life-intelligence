@@ -31,6 +31,10 @@ _HAZARD_GRADIENTS = {
     Sensor.HAZARD_GRADIENT_WEST: (-1, 0),
 }
 
+#: Position lookups, so the hot path does not scan a tuple twice per read.
+_MEMORY_INDEX = {sensor: index for index, sensor in enumerate(MEMORY_SENSORS)}
+_SIGNAL_INDEX = {sensor: index for index, sensor in enumerate(SIGNAL_SENSORS)}
+
 
 def read_sensor(sensor: Sensor, cell: Cell, world: World) -> float:
     """Return the value of one sensor for one cell. Charging is the caller's job."""
@@ -39,8 +43,9 @@ def read_sensor(sensor: Sensor, cell: Cell, world: World) -> float:
     if sensor is Sensor.RESOURCE_HERE:
         return float(world.resource[y, x])
 
-    if sensor in _RESOURCE_GRADIENTS:
-        dx, dy = _RESOURCE_GRADIENTS[sensor]
+    offset = _RESOURCE_GRADIENTS.get(sensor)
+    if offset is not None:
+        dx, dy = offset
         nx, ny = world.wrap(x + dx, y + dy)
         if nx < 0:
             return 0.0
@@ -49,8 +54,9 @@ def read_sensor(sensor: Sensor, cell: Cell, world: World) -> float:
     if sensor is Sensor.HAZARD_HERE:
         return float(world.hazard[y, x])
 
-    if sensor in _HAZARD_GRADIENTS:
-        dx, dy = _HAZARD_GRADIENTS[sensor]
+    offset = _HAZARD_GRADIENTS.get(sensor)
+    if offset is not None:
+        dx, dy = offset
         nx, ny = world.wrap(x + dx, y + dy)
         if nx < 0:
             return 0.0
@@ -81,8 +87,8 @@ def read_sensor(sensor: Sensor, cell: Cell, world: World) -> float:
                 count += 1
         return float(count)
 
-    if sensor in MEMORY_SENSORS:
-        index = MEMORY_SENSORS.index(sensor)
+    index = _MEMORY_INDEX.get(sensor)
+    if index is not None:
         controls = world.config.controls
         if controls.disable_memory or index >= len(cell.internal_state):
             return 0.0
@@ -93,8 +99,8 @@ def read_sensor(sensor: Sensor, cell: Cell, world: World) -> float:
             return world.scrambled_memory_value(cell, index)
         return float(cell.internal_state[index])
 
-    if sensor in SIGNAL_SENSORS:
-        channel = SIGNAL_SENSORS.index(sensor)
+    channel = _SIGNAL_INDEX.get(sensor)
+    if channel is not None:
         if channel >= world.signal_field.shape[0]:
             return 0.0
         if world.config.controls.isolate_cells:

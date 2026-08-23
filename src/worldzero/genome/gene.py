@@ -261,12 +261,13 @@ class Genome:
     an explicit operator rather than an accident of sorting.
     """
 
-    __slots__ = ("_genes", "_hash", "_sensors")
+    __slots__ = ("_genes", "_hash", "_ordered", "_sensors")
 
     def __init__(self, genes: list[Gene] | tuple[Gene, ...] = ()) -> None:
         self._genes: tuple[Gene, ...] = tuple(genes)
         self._hash: str | None = None
         self._sensors: tuple[Sensor, ...] | None = None
+        self._ordered: tuple[Gene, ...] | None = None
 
     @property
     def genes(self) -> tuple[Gene, ...]:
@@ -288,8 +289,14 @@ class Genome:
         return f"Genome(len={len(self._genes)}, hash={self.hash[:8]})"
 
     def ordered(self) -> tuple[Gene, ...]:
-        """Genes in evaluation order (section 6.4: 'sorted by priority')."""
-        return tuple(sorted(self._genes, key=lambda g: -g.priority))
+        """Genes in evaluation order (section 6.4: 'sorted by priority').
+
+        Cached: a Genome is immutable, and this is called once per cell per
+        step -- re-sorting it was about 8% of simulation time.
+        """
+        if self._ordered is None:
+            self._ordered = tuple(sorted(self._genes, key=lambda g: -g.priority))
+        return self._ordered
 
     def enabled_sensors(self) -> tuple[Sensor, ...]:
         """Only sensors a gene actually references are read, and paid for."""
