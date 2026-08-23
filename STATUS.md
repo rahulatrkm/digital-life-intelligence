@@ -17,16 +17,33 @@ from "something broke".
 
 | | |
 |---|---|
-| Ladder reached | **stage 2 — memory** (E2 at 16k steps, replicated at 12 seeds) |
-| Suite ladder at the 4k default | stage 1 — resource behaviour |
-| Last full suite | 2026-08-23, 5 seeds/arm, 170 worlds |
-| Tests | 149 passing, ruff clean |
+| Ladder reached | **stage 2 — memory** (full suite, 16k default) |
+| Last full suite | 2026-08-23, 16k steps, 5 seeds/arm |
+| Tests | 159 passing, ruff clean |
 | Experiments viable | 10 / 10 populations survive and reproduce |
 | Reaching stage 0 | 8 / 10 (was 4) |
 | Reaching stage 1 | 6 / 10 (was 3) |
-| Throughput | 5.02× parallel × 1.16× per-step ≈ **5.8×** |
+| Throughput | 5.02× parallel × 1.16× per-step × 1.25× SMT ≈ **7.3×** |
 | Liveness | `worldzero status [--serve PORT]` |
-| Suite wall-clock | ~48 min (E9 is 71–75% of it; E0–E8 is ~12 min) |
+| Workers | 15 (logical count − 1), measured not assumed |
+
+### Suite result, 2026-08-23 at the 16,000-step baseline
+
+| exp | stage 0 | stage 1 | target | ladder |
+|---|---|---|---|---|
+| E0 viability | PASS | PASS | — | 1 |
+| E1 resource seeking | n/a | fail | 1 fail | none |
+| **E2 memory** | PASS | PASS | **2 PASS** | **2** |
+| E3 prediction | PASS | n/a | 3 fail (conf 0.67) | 0 |
+| E4 communication | PASS | PASS | 4 fail (conf 0.67) | 1 |
+| E5 cooperation | PASS | PASS | 5 fail (conf 0.67) | 1 |
+| E6 abstraction | PASS | PASS | 6 fail (conf 0.33) | 1 |
+| E7 culture | n/a | PASS | 7 fail (conf 0.33) | none |
+| E8 scientific | PASS | n/a | 8 fail (conf 0.67) | 0 |
+| E9 acceleration | PASS | PASS | 9,10 fail | 1 |
+
+**Suite ladder: stage 2 (memory).** E2 passes here at 5 seeds inside the
+full suite, independently of the 12-seed isolated run that first found it.
 
 ### Suite result, 2026-08-22 (v5)
 
@@ -54,9 +71,17 @@ The E2 memory null was a **run-length artefact**, not an absence. Only
 
 | steps | generations | d | p | verdict |
 |---|---|---|---|---|
-| 4,000 | 55 | 0.700 | 0.1385 | fail |
-| 16,000 | 83 | 2.333 | 0.0022 | pass (n=6) |
-| **16,000** | **83** | **1.023** | **0.0120** | **pass, replicated (n=12)** |
+| 4,000 | 55 | 0.073 | 0.419 | fail |
+| 6,000 | — | 0.168 | 0.322 | fail |
+| 8,000 | — | 0.231 | 0.287 | fail |
+| 12,000 | — | 0.565 | 0.097 | fail |
+| **16,000** | **83** | **1.023** | **0.0120** | **pass** |
+
+Five points at 12 seeds each, rising monotonically. A dose-response curve
+is far stronger than a single pass: a fluke does not climb smoothly.
+The 4,000-step default was chosen because it was "small enough to run on
+a laptop" — a convenience that became a scientific bound and suppressed a
+true positive. Base is now 16,000, E9 24,000.
 
 All three criteria pass independently at 12 seeds:
 
