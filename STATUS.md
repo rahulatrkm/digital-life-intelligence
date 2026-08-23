@@ -17,8 +17,9 @@ from "something broke".
 
 | | |
 |---|---|
-| Ladder reached | **stage 1 — resource behaviour** (contiguous), stage 1 (any) |
-| Last full suite | 2026-08-22 (v5), 5 seeds/arm, ~170 worlds |
+| Ladder reached | **stage 2 — memory** (E2 at 16k steps, replicated at 12 seeds) |
+| Suite ladder at the 4k default | stage 1 — resource behaviour |
+| Last full suite | 2026-08-23, 5 seeds/arm, 170 worlds |
 | Tests | 149 passing, ruff clean |
 | Experiments viable | 10 / 10 populations survive and reproduce |
 | Reaching stage 0 | 8 / 10 (was 4) |
@@ -42,10 +43,40 @@ from "something broke".
 | E8 scientific | PASS | n/a | 8 fail | null: p=0.337, d=0.27 |
 | E9 acceleration | PASS | PASS | 9,10 fail | archive 2.20 (want ≥3); IAR −0.0001, 2/5 seeds |
 
-**Stages 2–10 are honest nulls.** Live populations, adequate statistical
-power, untouched §14 detectors. No capability above stage 1 is detected.
+**Stages 3–10 remain nulls at the 4,000-step default**, on live
+populations with adequate power and untouched §14 detectors. Stage 2 is
+now reached at 16,000 steps — see below.
 
-### Power check, 2026-08-23 — the two best candidates are true nulls
+### Stage 2 reached: memory emerges, given enough generations
+
+The E2 memory null was a **run-length artefact**, not an absence. Only
+`stop.max_steps` varied — no tuning, no threshold change:
+
+| steps | generations | d | p | verdict |
+|---|---|---|---|---|
+| 4,000 | 55 | 0.700 | 0.1385 | fail |
+| 16,000 | 83 | 2.333 | 0.0022 | pass (n=6) |
+| **16,000** | **83** | **1.023** | **0.0120** | **pass, replicated (n=12)** |
+
+All three criteria pass independently at 12 seeds:
+
+```
+behaviour_depends_on_memory : I(memory; action) = 0.2136, ~10x the 0.02 threshold
+beats_scrambled_memory      : delta 0.8168, p=0.0120, d=1.023, floor 0.0005
+persists_across_seeds       : 11/12 seeds beat the control mean
+```
+
+The effect still deflated with more data (2.333 → 1.023), as it has every
+time here — but unlike the earlier false alarms it settled at a large,
+well-resolved value instead of decaying to zero. Contrast E2 at 4,000
+steps, where d went 2.576 → 0.727 → 0.073 as n went 3 → 5 → 12.
+
+**Implication: the 4,000-step default may be systematically too short.**
+`BASE_OVERRIDES` chose it because it was "small enough to run on a
+laptop" — a convenience, not a scientific bound. E3, E4, E6 and E8 all
+run at 4,000 and may be under-evolved for the same reason. Under test.
+
+### Power check, 2026-08-23 — two candidates were true nulls
 
 E2 memory and E5 cooperation were the only stage-2+ results with large
 effect sizes, so they looked underpowered rather than absent. Re-run at
