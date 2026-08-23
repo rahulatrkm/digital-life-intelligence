@@ -14,12 +14,21 @@ from typing import Any
 
 from worldzero.core.config import SimulationConfig
 
-#: Small enough that the whole suite runs on a laptop, large enough that a
-#: population has room to differentiate. Override with --steps / --size.
+#: Long enough for the mechanisms under test to appear, which is not the same
+#: as long enough to be convenient. The previous default of 4000 was chosen so
+#: the suite ran quickly on a laptop, and it silently suppressed a true
+#: positive: E2's memory effect grows monotonically with evolutionary time and
+#: only clears significance at 16000. Measured at 12 seeds per arm:
+#:
+#:      4000  d=0.073  p=0.419     8000  d=0.231  p=0.287
+#:      6000  d=0.168  p=0.322    12000  d=0.565  p=0.097
+#:                                16000  d=1.023  p=0.012   <- detected
+#:
+#: A convenience default became a scientific bound. Override with --steps.
 BASE_OVERRIDES: dict[str, Any] = {
     "world": {"width": 64, "height": 64},
     "cell": {"start_population": 200, "max_sensor_stage": 0},
-    "stop": {"max_steps": 4000},
+    "stop": {"max_steps": 16000},
     "logging": {"metrics_interval": 100, "trace_interval": 20, "checkpoint_interval": 0},
 }
 
@@ -274,7 +283,10 @@ E9 = ExperimentSpec(
             "regen_rate": 0.4,
         },
         "hazards": {"regime": "seasonal", "season_period": 1000},
-        "stop": {"max_steps": 12000},
+        # Stays the longest-horizon experiment: it asks whether the capability
+        # growth *rate* rises, which needs more time than the mechanisms below
+        # it, and the base is now 16000.
+        "stop": {"max_steps": 24000},
     },
     controls=("no_markers", "no_probe", "random"),
     detectors=("civilization", "intelligence_acceleration"),

@@ -103,10 +103,16 @@ class ExperimentReport:
 
 
 def resolve_workers(requested: int | None) -> int:
-    """0 or None means "use the machine", leaving one core for everything else."""
+    """0 or None means "use the machine", leaving one core for everything else.
+
+    The cap is the logical processor count rather than the physical core count:
+    the step loop is pure Python and spends much of its time on dict and
+    attribute lookups rather than saturating an execution port, so the extra SMT
+    threads do carry useful work. Measured with scripts/benchmark_workers.py.
+    """
     if requested and requested > 0:
         return requested
-    return max(1, min(8, (os.cpu_count() or 2) - 1))
+    return max(1, (os.cpu_count() or 2) - 1)
 
 
 def _run_world_task(payload: tuple[Any, ...]) -> RunResult:
