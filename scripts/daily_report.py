@@ -145,13 +145,15 @@ def splice(existing: str, date: str, entry: str) -> str:
 
     head, tail = existing.split(MARKER, 1)
 
-    heading = f"## {date} IST\n"
-    if heading in tail:
-        start = tail.index(heading)
-        rest = tail[start + len(heading) :]
-        # An entry ends at the next date heading, or at the end of the file.
-        following = rest.find("\n## ")
-        tail = tail[:start] + (rest[following + 1 :] if following != -1 else "")
+    # Entries were once headed with a bare date. Match that too, or renaming
+    # the format leaves the old entry orphaned beside the new one.
+    for heading in (f"## {date} IST\n", f"## {date}\n"):
+        while heading in tail:
+            start = tail.index(heading)
+            rest = tail[start + len(heading) :]
+            # An entry ends at the next date heading, or at the end of the file.
+            following = rest.find("\n## ")
+            tail = tail[:start] + (rest[following + 1 :] if following != -1 else "")
 
     return f"{head}{MARKER}\n\n{entry}{tail.lstrip(chr(10))}"
 
