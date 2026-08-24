@@ -18,16 +18,17 @@ from "something broke".
 | | |
 |---|---|
 | Ladder reached | **stage 2 — memory** (full suite, 16k default) |
-| Last full suite | 2026-08-23, 16k steps, 5 seeds/arm |
+| Last full suite | 2026-08-24 IST, 16k steps, 5 seeds/arm |
 | Tests | 159 passing, ruff clean |
+| Experiments passing | 2 / 10 (E0, E2) |
 | Experiments viable | 10 / 10 populations survive and reproduce |
-| Reaching stage 0 | 8 / 10 (was 4) |
-| Reaching stage 1 | 6 / 10 (was 3) |
+| Reaching stage 0 | 8 / 10 |
+| Reaching stage 1 | 7 / 10 |
 | Throughput | 5.02× parallel × 1.16× per-step × 1.25× SMT ≈ **7.3×** |
 | Liveness | `worldzero status [--serve PORT]` |
 | Workers | 15 (logical count − 1), measured not assumed |
 
-### Suite result, 2026-08-23 at the 16,000-step baseline
+### Suite result at the 16,000-step baseline
 
 | exp | stage 0 | stage 1 | target | ladder |
 |---|---|---|---|---|
@@ -42,132 +43,32 @@ from "something broke".
 | E8 scientific | PASS | n/a | 8 fail (conf 0.67) | 0 |
 | E9 acceleration | PASS | PASS | 9,10 fail | 1 |
 
-**Suite ladder: stage 2 (memory).** E2 passes here at 5 seeds inside the
-full suite, independently of the 12-seed isolated run that first found it.
-
-### Suite result, 2026-08-22 (v5)
-
-| exp | stage 0 | stage 1 | target stage | reading |
-|---|---|---|---|---|
-| E0 viability | PASS | PASS | — | **PASS** |
-| E1 resource seeking | — | fail | 1 | structural, see below |
-| E2 memory | PASS | PASS | 2 fail | null: p=0.163, d=0.73 |
-| E3 prediction | PASS | n/a | 3 fail | null: p=0.452, d=0.08 |
-| E4 communication | PASS | PASS | 4 fail | null: p=0.377, d=0.43 |
-| E5 cooperation | PASS | PASS | 5 fail | null: p=0.123, d=0.85 |
-| E6 abstraction | PASS | PASS | 6 fail | null: p=0.409, spread 0.34 |
-| E7 culture | n/a | PASS | 7 fail | null: delta −2.38 |
-| E8 scientific | PASS | n/a | 8 fail | null: p=0.337, d=0.27 |
-| E9 acceleration | PASS | PASS | 9,10 fail | archive 2.20 (want ≥3); IAR −0.0001, 2/5 seeds |
-
-**Stages 3–10 remain nulls at the 4,000-step default**, on live
-populations with adequate power and untouched §14 detectors. Stage 2 is
-now reached at 16,000 steps — see below.
-
-### Stage 2 reached: memory emerges, given enough generations
-
-The E2 memory null was a **run-length artefact**, not an absence. Only
-`stop.max_steps` varied — no tuning, no threshold change:
-
-| steps | generations | d | p | verdict |
-|---|---|---|---|---|
-| 4,000 | 55 | 0.073 | 0.419 | fail |
-| 6,000 | — | 0.168 | 0.322 | fail |
-| 8,000 | — | 0.231 | 0.287 | fail |
-| 12,000 | — | 0.565 | 0.097 | fail |
-| **16,000** | **83** | **1.023** | **0.0120** | **pass** |
-
-Five points at 12 seeds each, rising monotonically. A dose-response curve
-is far stronger than a single pass: a fluke does not climb smoothly.
-The 4,000-step default was chosen because it was "small enough to run on
-a laptop" — a convenience that became a scientific bound and suppressed a
-true positive. Base is now 16,000, E9 24,000.
-
-All three criteria pass independently at 12 seeds:
-
-```
-behaviour_depends_on_memory : I(memory; action) = 0.2136, ~10x the 0.02 threshold
-beats_scrambled_memory      : delta 0.8168, p=0.0120, d=1.023, floor 0.0005
-persists_across_seeds       : 11/12 seeds beat the control mean
-```
-
-The effect still deflated with more data (2.333 → 1.023), as it has every
-time here — but unlike the earlier false alarms it settled at a large,
-well-resolved value instead of decaying to zero. Contrast E2 at 4,000
-steps, where d went 2.576 → 0.727 → 0.073 as n went 3 → 5 → 12.
-
-**Implication: the 4,000-step default may be systematically too short.**
-`BASE_OVERRIDES` chose it because it was "small enough to run on a
-laptop" — a convenience, not a scientific bound. E3, E4, E6 and E8 all
-run at 4,000 and may be under-evolved for the same reason. Under test.
-
-### Stage 3 was never actually tested until today
-
-`acts_before_future_state` is prediction's primary evidence. It pairs each
-sampled action with the resource at the same tile `lag` steps later, by
-exact key `(timestep + lag, x, y)`. Tiles are only recorded on sampling
-steps, and the lags come from `cue_lead_time`, which need not line up:
-
-| lag tried | `lag % trace_interval` | pairs found |
-|---|---|---|
-| 6 | 6 | **0** |
-| 12 | 12 | **0** |
-| 24 | 4 | **0** |
-| *20 (aligned)* | 0 | *1,614* |
-| *40 (aligned)* | 0 | *1,195* |
-
-The criterion needs ≥50 pairs and got exactly zero, every run, at every
-length. Every "prediction not detected" result before today was vacuous
-on its main criterion.
-
-Now matched to the nearest recorded observation within one sampling
-interval. E3 at 16k steps moves from confidence 0.33 to 0.67:
-
-```
-[PASS] acts_before_future_state   (now computable)
-[fail] beats_reactive_baseline    delta -0.0364, p=0.7424, d=-0.373
-```
-
-So cells **do** act in ways correlated with future resource state, but it
-buys them nothing against the reactive baseline — a real null at last,
-rather than an unmeasured one. That is the sixth criterion found unable
-to measure what it claims.
-
-### Power check, 2026-08-23 — two candidates were true nulls
-
-E2 memory and E5 cooperation were the only stage-2+ results with large
-effect sizes, so they looked underpowered rather than absent. Re-run at
-12 seeds they collapse:
-
-| | 3 seeds | 5 seeds | 12 seeds |
-|---|---|---|---|
-| E2 memory | d = **2.576** | d = 0.727 | d = **0.073**, p = 0.419 |
-| E5 cooperation | — | d = 0.847 | d = **0.447**, p = 0.155 |
-
-Effect size decaying toward zero as n grows is the signature of
-small-sample inflation, not of a real effect awaiting power. Memory
-content does not improve fitness in E2's environment, and groups do not
-beat isolated individuals in E5's, at these configurations.
-
-Worth recording: had the p threshold been relaxed to 0.15 instead of
-adding seeds, both would have "passed" today. Two false positives, which
-is §19's named "metric false positive" failure.
+**Suite ladder: stage 2 (memory).** Two independent 16k suite runs — one
+manual, one from the 07:00 IST job — agree exactly: ladder 2, stage 0
+8/10, stage 1 7/10, 2/10 passing. E2 passes at 5 seeds inside the full
+suite, independently of the 12-seed isolated run that first found it.
 
 ### Open issues
 
-1. **E1 cannot express resource seeking.** `static` food never
+1. **Stages 3–10 are nulls, now on a fair test.** Live populations, 16k
+   steps, adequate power, criteria that can compute a number. Closest:
+   E4 communication d=0.754 p=0.139, E5 cooperation d=0.727 p=0.151.
+2. **E1 cannot express resource seeking.** `static` food never
    replenishes, so with movement at 1.0 against idling at 0.1 the
    longest-lived strategy is to forage *less*. A random arm is
-   accidentally frugal and wins. This is a property of the E1 design in
-   §5.4, not a tuning gap — recorded rather than tuned away.
-2. **E7 fails stage 0 on the lifespan tiebreak** (108.6 vs random
-   123.3) while passing stage 1. Both arms survive, so persistence ties
-   and the turnover-confounded measure decides it.
-3. **E9 stage 9 is close**: archive 2.20 against a threshold of 3.
-   Stage 10 shows no acceleration (2/5 seeds positive).
-4. **Five ladder metrics have been found to invert under selection.**
-   See the log below. Stages 0–1 have now been revised four times; the
-   §14 detectors have not been touched.
+   accidentally frugal and wins. A property of the E1 design in §5.4,
+   not a tuning gap — recorded rather than tuned away.
+3. **E7 fails stage 0 on the lifespan tiebreak.** Both arms survive, so
+   persistence ties and the turnover-confounded measure decides it.
+4. **E9 stage 9 is close**: novelty archive 2.20 against a threshold of
+   3. Stage 10 shows no acceleration.
+5. **Six criteria have been found unable to measure what they claim** —
+   five inverted under selection, one could never produce a number at
+   all. See the dated log. Stages 0–1 have been revised four times; the
+   §14 detectors for stages 2–10 remain untouched.
+6. **Two defaults were convenience masquerading as science** (run length
+   4,000; worker cap 8). Both are now measured. Others may remain
+   unexamined.
 
 ---
 
