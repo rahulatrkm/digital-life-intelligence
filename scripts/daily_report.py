@@ -34,6 +34,13 @@ def ist_today() -> str:
     return datetime.now(IST).strftime("%Y-%m-%d")
 
 
+def ist_stamp() -> str:
+    """Entries are dated in IST because the report is due at 07:00 IST, which
+    falls on the previous day in most other zones. Spelling out the zone stops
+    a reader in another timezone reading the heading as wrong."""
+    return datetime.now(IST).strftime("%Y-%m-%d %H:%M IST")
+
+
 def run_suite(replicates: int) -> tuple[bool, str]:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     command = [
@@ -112,7 +119,7 @@ def summarise(data: dict[str, Any]) -> list[str]:
 
 
 def build_entry(date: str, ok: bool, data: dict[str, Any] | None, note: str) -> str:
-    lines = [f"## {date}", ""]
+    lines = [f"## {date} IST", "", f"*Generated {ist_stamp()}.*", ""]
     if ok and data:
         lines += ["**Automated suite run.**", ""]
         lines += ["| | |", "|---|---|"]
@@ -138,7 +145,7 @@ def splice(existing: str, date: str, entry: str) -> str:
 
     head, tail = existing.split(MARKER, 1)
 
-    heading = f"## {date}\n"
+    heading = f"## {date} IST\n"
     if heading in tail:
         start = tail.index(heading)
         rest = tail[start + len(heading) :]

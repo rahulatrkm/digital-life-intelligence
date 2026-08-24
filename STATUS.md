@@ -198,29 +198,67 @@ is §19's named "metric false positive" failure.
 | E9 Intelligence acceleration | PASS | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000110 |
 
 ---
-## 2026-08-23
+## 2026-08-23 IST
 
-**Automated suite run.**
+*Entries are dated in IST, since the report is due at 07:00 IST — which
+falls on the previous day in the Americas.*
 
-| | |
-|---|---|
-| Ladder (contiguous) | **stage 1 — resource behaviour** |
-| Ladder (any) | stage 1 |
-| Seeds per arm | 5 |
-| Experiments passing | 1 / 10 |
+**Stage 2 reached: memory emerges once runs are long enough.**
 
-| exp | stage 0 | stage 1 | target | detail |
-|---|---|---|---|---|
-| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
-| E1 Resource seeking | n/a | fail | 1 fail | surviving descendants per founder 0.385 vs random 0.856 (gross births 3.8 vs 2.0) |
-| E2 Memory pressure | PASS | PASS | 2 fail | fitness delta 4.3610, p=0.1627, d=0.727 |
-| E3 Prediction pressure | PASS | n/a | 3 fail | insufficient paired samples |
-| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta 0.4174, p=0.3770, d=0.434 |
-| E5 Cooperation pressure | PASS | PASS | 5 fail | fitness delta 3.3998, p=0.1230, d=0.847 |
-| E6 Abstraction pressure | PASS | PASS | 6 fail | relative spread of outcome across signatures = 0.3429 (want < 0.25) |
-| E7 Culture pressure | n/a | PASS | 7 fail | fitness delta -2.3826, p=0.6230, d=-0.439 |
-| E8 Scientific behaviour pressure | PASS | n/a | 8 fail | fitness delta 0.1295, p=0.3373, d=0.270 |
-| E9 Intelligence acceleration | PASS | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000104 |
+The ladder moved from stage 1 to **stage 2**, the first capability found
+above resource behaviour. Not a better detector and not a tuned
+parameter — a default.
+
+`BASE_OVERRIDES` used 4,000 steps because that was *"small enough that
+the whole suite runs on a laptop"*. Measured at 12 seeds per arm, with
+only `stop.max_steps` varying:
+
+| steps | d | p |
+|---|---|---|
+| 4,000 | 0.073 | 0.419 |
+| 6,000 | 0.168 | 0.322 |
+| 8,000 | 0.231 | 0.287 |
+| 12,000 | 0.565 | 0.097 |
+| **16,000** | **1.023** | **0.0120** |
+
+A monotonic climb across five independent lengths is far stronger than a
+single pass: a fluke does not produce a dose-response curve. A
+convenience default had become a scientific bound.
+
+**Controls that make it credible**
+
+- Longer runs are *not* a universal fix — E3, E4, E6, E8 at 16,000 gave
+  d = −0.373, 0.643, −0.018, 0.414. Had everything improved, long runs
+  would look like a general inflator, and memory with them.
+- E2 passes at **5 seeds inside the full suite**, independently of the
+  12-seed isolated run that found it.
+
+**Two large effects were noise, and more data proved it**
+
+E2 at 4k: d = 2.576 → 0.727 → 0.073 as n went 3 → 5 → 12. E5: 0.847 →
+0.447. Decaying-toward-zero is noise; deflating-but-stable (2.333 →
+1.023) is a real effect first measured optimistically. Had the threshold
+been relaxed to p<0.15 instead of adding seeds, both would have passed —
+two false positives, and stage 2 would have been indistinguishable.
+
+**A sixth criterion that could never fire**
+
+`acts_before_future_state` demanded an exact key `(timestep + lag, x, y)`,
+but tiles are recorded every `trace_interval` = 20 while lags come from
+`cue_lead_time` = 12. Lags 6/12/24 returned **0 pairs, always**, against a
+requirement of 50 — stage 3 had never been tested. Now matched to the
+nearest observation within one sampling interval. E3 moves to confidence
+0.67, so its failure is a measured null rather than a missing measurement.
+
+**Throughput ≈ 7.3×**
+
+1.16× per-step (double dict lookups, linear scans, re-sorting an
+immutable genome) × 5.02× parallel × 1.25× from raising the worker cap to
+15 once measurement showed SMT does help this pure-Python loop. Every
+step verified to leave results bit-identical.
+
+**Automation:** the 07:00 IST job ran unattended for the first time and
+produced the entry above it.
 
 ---
 ## 2026-08-22
