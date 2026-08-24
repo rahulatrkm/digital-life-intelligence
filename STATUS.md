@@ -173,6 +173,33 @@ is §19's named "metric false positive" failure.
 
 <!-- daily-entries -->
 
+## 2026-08-24 IST
+
+*Generated 2026-08-24 12:04 IST.*
+
+**Automated suite run.**
+
+| | |
+|---|---|
+| Ladder (contiguous) | **stage 2 — memory** |
+| Ladder (any) | stage 2 |
+| Seeds per arm | 5 |
+| Experiments passing | 2 / 10 |
+
+| exp | stage 0 | stage 1 | target | detail |
+|---|---|---|---|---|
+| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
+| E1 Resource seeking | n/a | fail | 1 fail | surviving descendants per founder 0.385 vs random 0.856 (gross births 3.8 vs 2.0) |
+| E2 Memory pressure | PASS | PASS | 2 PASS | all criteria passed |
+| E3 Prediction pressure | PASS | n/a | 3 fail | fitness delta -0.0625, p=0.8413, d=-0.648 |
+| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta 0.2138, p=0.1389, d=0.754 |
+| E5 Cooperation pressure | PASS | PASS | 5 fail | fitness delta 0.8171, p=0.1508, d=0.727 |
+| E6 Abstraction pressure | PASS | PASS | 6 fail | relative spread of outcome across signatures = 0.3536 (want < 0.25) |
+| E7 Culture pressure | n/a | PASS | 7 fail | mean normalised I(marker; action) = 0.0151 |
+| E8 Scientific behaviour pressure | PASS | n/a | 8 fail | fitness delta 0.0227, p=0.4643, d=0.170 |
+| E9 Intelligence acceleration | PASS | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000110 |
+
+---
 ## 2026-08-24
 
 **Automated suite run.**
