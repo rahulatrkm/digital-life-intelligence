@@ -24,6 +24,12 @@ class Criterion:
     passed: bool
     detail: str = ""
     value: float | None = None
+    control: str = ""
+    """Control arm this was measured against, where the criterion is a comparison.
+
+    Criterion names describe the claim rather than the arm (``beats_reactive_baseline``
+    against an arm labelled ``reactive``), so the arm cannot be recovered from the
+    name. Later analysis that pools runs needs to compare the same two arms."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -31,6 +37,7 @@ class Criterion:
             "passed": self.passed,
             "detail": self.detail,
             "value": None if self.value is None else round(self.value, 6),
+            "control": self.control,
         }
 
 
@@ -143,13 +150,14 @@ class Detector:
         missing control is: as a precondition, not as evidence.
         """
         test = self.beats_control(treatment, control, seed=seed)
+        arm = control[0].label if control else ""
         if test.underpowered:
             detail = (
                 f"underpowered: {test.n_treatment}v{test.n_control} runs can reach "
                 f"p>={test.resolution:.3f} at best; need more seeds "
                 f"(delta {test.statistic:.4f}, d={test.effect_size:.3f})"
             )
-            return Criterion(name, False, detail, test.statistic), test
+            return Criterion(name, False, detail, test.statistic, arm), test
 
         return (
             Criterion(
@@ -158,6 +166,7 @@ class Detector:
                 f"fitness delta {test.statistic:.4f}, p={test.p_value:.4f}, "
                 f"d={test.effect_size:.3f}",
                 test.statistic,
+                arm,
             ),
             test,
         )
