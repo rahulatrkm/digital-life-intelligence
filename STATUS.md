@@ -76,17 +76,41 @@ suite, independently of the 12-seed isolated run that first found it.
 
 ## 2026-08-30 IST
 
-*Generated 2026-08-30 20:34 IST.*
+*Generated 2026-08-30 23:26 IST.*
 
-**Automated suite run did not produce results.**
+**Automated suite run.** Seeds 6–10.
 
-```
-Traceback (most recent call last):
-  File "C:\digital-life-intelligence\scripts\daily_report.py", line 204, in main
-    ok, note = run_suite(args.replicates)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: run_suite() missing 1 required positional argument: 'base'
-```
+| | |
+|---|---|
+| Ladder (contiguous) | **stage 1 — resource behaviour** |
+| Ladder (any) | stage 9 |
+| Seeds per arm | 5 |
+| Experiments passing | 2 / 10 |
+
+| exp | stage 0 | stage 1 | target | detail |
+|---|---|---|---|---|
+| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
+| E1 Resource seeking | n/a | fail | 1 fail | surviving descendants per founder 0.356 vs random 0.888 (gross births 3.7 vs 2.0) |
+| E2 Memory pressure | PASS | PASS | 2 fail | fitness delta 0.5586, p=0.2222, d=0.520 |
+| E3 Prediction pressure | PASS | n/a | 3 fail | fitness delta -0.0205, p=0.6389, d=-0.224 |
+| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta 0.1334, p=0.1032, d=0.852 |
+| E5 Cooperation pressure | PASS | PASS | 5 PASS | all criteria passed |
+| E6 Abstraction pressure | PASS | PASS | 6 fail | relative spread of outcome across signatures = 0.3611 (want < 0.25) |
+| E7 Culture pressure | n/a | PASS | 7 fail | fitness delta -0.2999, p=0.5833, d=-0.120 |
+| E8 Scientific behaviour pressure | PASS | n/a | 8 fail | fitness delta 0.0765, p=0.0952, d=0.930 |
+| E9 Intelligence acceleration | PASS | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000079 |
+
+**Pooled across runs.** Seeds accumulate at 30 per arm, fixed before the data; below that a comparison is provisional however its p-value looks.
+
+| exp | comparison | n | delta | d | p | status |
+|---|---|---|---|---|---|---|
+| E2 | beats_scrambled_memory vs scrambled_memory | 5 | +0.5586 | +0.520 | 0.2222 | provisional (5/30) |
+| E3 | beats_reactive_baseline vs no_memory | 5 | -0.0205 | -0.224 | 0.6389 | provisional (5/30) |
+| E4 | beats_scrambled_signals vs scrambled_signals | 5 | +0.1334 | +0.852 | 0.1032 | provisional (5/30) |
+| E5 | groups_beat_isolated vs isolated | 5 | +1.2616 | +1.265 | 0.0397 | provisional (5/30) |
+| E6 | beats_memorisation_baseline vs single_variant | 5 | -0.2965 | -0.264 | 0.6190 | provisional (5/30) |
+| E7 | removing_layer_reduces_performance vs no_markers | 5 | -0.2999 | -0.120 | 0.5833 | provisional (5/30) |
+| E8 | information_improves_outcomes vs no_probe | 5 | +0.0765 | +0.930 | 0.0952 | provisional (5/30) |
 
 ---
 ## 2026-08-28 IST
