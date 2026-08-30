@@ -239,6 +239,21 @@ class SimulationConfig:
         blob = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
+    def design_fingerprint(self) -> str:
+        """Hash of the world design, ignoring the seed.
+
+        ``fingerprint`` covers the seed, so it differs for every run and cannot
+        identify "the same experiment at another seed". Anything pooling runs
+        across seeds needs this instead, or it sees each run as a new design.
+        """
+        import hashlib
+        import json
+
+        data = self.to_dict()
+        data.get("world", {}).pop("seed", None)
+        blob = json.dumps(data, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
 
 def _build(cls: type, data: dict[str, Any]) -> Any:
     # `from __future__ import annotations` turns field types into strings, so

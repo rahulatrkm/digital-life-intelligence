@@ -81,6 +81,7 @@ class RunResult:
             "seed": self.seed,
             "steps": self.steps,
             "config_fingerprint": self.config.fingerprint(),
+            "design_fingerprint": self.config.design_fingerprint(),
             "controls": self.config.controls.active(),
             "final_stats": self.final_stats,
             "metric_summary": self.metric_summary,

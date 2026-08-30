@@ -17,42 +17,55 @@ from "something broke".
 
 | | |
 |---|---|
-| Ladder reached | **stage 2 — memory** (full suite, 16k default) |
-| Last full suite | 2026-08-24 IST, 16k steps, 5 seeds/arm |
-| Tests | 159 passing, ruff clean |
-| Experiments passing | 2 / 10 (E0, E2) |
+| Ladder reached | **not settled — the verdict moves with the seeds** |
+| Last full suite | 2026-08-30 IST, 16k steps, seeds 6–10 |
+| Tests | 177 passing, ruff clean |
 | Experiments viable | 10 / 10 populations survive and reproduce |
 | Reaching stage 0 | 8 / 10 |
 | Reaching stage 1 | 7 / 10 |
+| Evidence pooling | 5 / 30 seeds per arm, target fixed before the data |
 | Throughput | 5.02× parallel × 1.16× per-step × 1.25× SMT ≈ **7.3×** |
 | Liveness | `worldzero status [--serve PORT]` |
 | Workers | 15 (logical count − 1), measured not assumed |
 
-### Suite result at the 16,000-step baseline
+### The five-seed verdict is not stable
 
-| exp | stage 0 | stage 1 | target | ladder |
-|---|---|---|---|---|
-| E0 viability | PASS | PASS | — | 1 |
-| E1 resource seeking | n/a | fail | 1 fail | none |
-| **E2 memory** | PASS | PASS | **2 PASS** | **2** |
-| E3 prediction | PASS | n/a | 3 fail (conf 0.67) | 0 |
-| E4 communication | PASS | PASS | 4 fail (conf 0.67) | 1 |
-| E5 cooperation | PASS | PASS | 5 fail (conf 0.67) | 1 |
-| E6 abstraction | PASS | PASS | 6 fail (conf 0.33) | 1 |
-| E7 culture | n/a | PASS | 7 fail (conf 0.33) | none |
-| E8 scientific | PASS | n/a | 8 fail (conf 0.67) | 0 |
-| E9 acceleration | PASS | PASS | 9,10 fail | 1 |
+Changing only *which* five seeds are used flips three stages:
 
-**Suite ladder: stage 2 (memory).** Two independent 16k suite runs — one
-manual, one from the 07:00 IST job — agree exactly: ladder 2, stage 0
-8/10, stage 1 7/10, 2/10 passing. E2 passes at 5 seeds inside the full
-suite, independently of the 12-seed isolated run that first found it.
+| stage | seeds 1–5 | seeds 6–10 |
+|---|---|---|
+| 2 memory | **PASS** (this was the headline) | fail — d=0.520, p=0.222, 3/5 seeds |
+| 5 cooperation | fail — p=0.151 | **PASS** — d=1.265, p=0.0397 |
+| 9 civilization | fail — archive 2.20 vs 3 | **PASS** — archive 3.20 vs 3 |
+| **contiguous ladder** | **2** | **1** (5 and 9 pass, not contiguous) |
+
+Same code, same config, same 16,000 steps. Only the seed block differs.
+At n=5 the per-stage verdict is dominated by which worlds were drawn, and
+E9 straddling its threshold by 0.8 either way is the clearest case.
+
+**So "the ladder reaches stage 2" was over-claimed.** It was true of seeds
+1–5. It is not a property of the system.
+
+**And the replication I reported on 2026-08-24 was not one.** Two 16k
+suite runs "agreeing exactly — ladder 2, stage 0 8/10, stage 1 7/10" were
+identical because they ran the *same seeds* through a deterministic
+engine. Identical output was the symptom of the defect found on 08-30,
+and it was cited as confirmation. Agreement to four significant figures
+between independent samples should have read as impossible, not
+reassuring.
+
+The 12-seed dose-response for E2 (d=1.023, p=0.0120 at 16k) is untouched
+by this and remains the strongest single result. But seeds 1–5 are a
+subset of that same run, so the suite pass never was independent
+corroboration of it.
 
 ### Open issues
 
-1. **Stages 3–10 are nulls, now on a fair test.** Live populations, 16k
-   steps, adequate power, criteria that can compute a number. Closest:
-   E4 communication d=0.754 p=0.139, E5 cooperation d=0.727 p=0.151.
+1. **The ladder needs a stable verdict, not another pass.** Runs now
+   contribute fresh seeds and pool in `evidence/pool.json` toward 30 per
+   arm. Below that, comparisons print as provisional. Live candidates:
+   E5 cooperation, E2 memory, E9 civilization, E4 communication
+   (d=0.852, p=0.103 at seeds 6–10).
 2. **E1 cannot express resource seeking.** `static` food never
    replenishes, so with movement at 1.0 against idling at 0.1 the
    longest-lived strategy is to forage *less*. A random arm is
@@ -60,15 +73,15 @@ suite, independently of the 12-seed isolated run that first found it.
    not a tuning gap — recorded rather than tuned away.
 3. **E7 fails stage 0 on the lifespan tiebreak.** Both arms survive, so
    persistence ties and the turnover-confounded measure decides it.
-4. **E9 stage 9 is close**: novelty archive 2.20 against a threshold of
-   3. Stage 10 shows no acceleration.
+4. **Stage 10 shows no acceleration** on either seed block: IAR negative,
+   0/5 seeds positive.
 5. **Six criteria have been found unable to measure what they claim** —
    five inverted under selection, one could never produce a number at
    all. See the dated log. Stages 0–1 have been revised four times; the
    §14 detectors for stages 2–10 remain untouched.
-6. **Two defaults were convenience masquerading as science** (run length
-   4,000; worker cap 8). Both are now measured. Others may remain
-   unexamined.
+6. **Three defaults were convenience masquerading as science** — run
+   length 4,000, worker cap 8, and the daily job's seeds. All three are
+   now measured or rotated. Others may remain unexamined.
 
 ---
 

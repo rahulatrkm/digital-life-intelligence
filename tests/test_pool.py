@@ -28,18 +28,44 @@ def summary(seeds, fingerprint="abc", treatment=1.0, control=0.0):
                 "experiment_id": "E4",
                 "required_detectors": ["communication"],
                 "treatment": [
-                    {"seed": s, "fitness": treatment, "config_fingerprint": fingerprint}
+                    {"seed": s, "fitness": treatment, "design_fingerprint": fingerprint}
                     for s in seeds
                 ],
                 "controls": {
                     "scrambled_signals": [
-                        {"seed": s, "fitness": control, "config_fingerprint": "xyz"}
+                        {"seed": s, "fitness": control, "design_fingerprint": "xyz"}
                         for s in seeds
                     ]
                 },
             }
         ]
     }
+
+
+def test_design_fingerprint_ignores_the_seed():
+    """Keying the pool on a seed-dependent hash resets it on every run."""
+    from worldzero.core.config import SimulationConfig
+
+    config = SimulationConfig()
+    a, b = config.with_seed(1), config.with_seed(2)
+    assert a.fingerprint() != b.fingerprint()
+    assert a.design_fingerprint() == b.design_fingerprint()
+
+
+def test_design_fingerprint_still_tracks_real_changes():
+    from worldzero.core.config import SimulationConfig
+
+    config = SimulationConfig()
+    changed = config.merged({"world": {"width": config.world.width + 1}})
+    assert config.design_fingerprint() != changed.design_fingerprint()
+
+
+def test_pool_survives_a_seed_change():
+    """Different seeds of one design must accumulate, not replace each other."""
+    pool = pooling.empty()
+    pooling.merge_summary(pool, summary([1, 2, 3], fingerprint="design-A"))
+    pooling.merge_summary(pool, summary([4, 5, 6], fingerprint="design-A"))
+    assert pooling.sample_size(pool, "E4") == 6
 
 
 def test_merge_accumulates_across_runs():

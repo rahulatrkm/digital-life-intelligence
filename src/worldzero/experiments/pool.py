@@ -80,10 +80,16 @@ def merge_summary(pool: dict[str, Any], summary: dict[str, Any]) -> dict[str, in
             continue
 
         arms = _arms(experiment)
-        # Controls differ from the treatment by design and so carry their own
-        # fingerprints; the treatment arm is what identifies the world.
+        # The design fingerprint deliberately excludes the seed: config_fingerprint
+        # covers it, so keying on that would treat every run as a new design and
+        # reset the pool on each one -- the guard would defeat the accumulation it
+        # exists to protect. Controls differ from the treatment by design and carry
+        # their own fingerprints, so the treatment arm identifies the world.
         treatment_runs = arms.get("treatment") or []
-        fingerprint = treatment_runs[0].get("config_fingerprint", "") if treatment_runs else ""
+        fingerprint = ""
+        if treatment_runs:
+            first = treatment_runs[0]
+            fingerprint = first.get("design_fingerprint") or first.get("config_fingerprint", "")
 
         entry = pool["experiments"].get(experiment_id)
         if entry is None or entry.get("fingerprint") != fingerprint:

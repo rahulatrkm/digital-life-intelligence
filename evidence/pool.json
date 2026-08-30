@@ -24,7 +24,7 @@
           "9": 7.583619
         }
       },
-      "fingerprint": "79238a667cbe8a2d"
+      "fingerprint": "7b64c6148c5015bf"
     },
     "E1": {
       "arms": {
@@ -50,7 +50,7 @@
           "9": 18.313879
         }
       },
-      "fingerprint": "c518f12f83476775"
+      "fingerprint": "82e4a7269f9f5308"
     },
     "E2": {
       "arms": {
@@ -83,7 +83,7 @@
           "9": 13.493815
         }
       },
-      "fingerprint": "17feaf8afac797ff"
+      "fingerprint": "d87954f94a9bc1f0"
     },
     "E3": {
       "arms": {
@@ -116,7 +116,7 @@
           "9": 0.345531
         }
       },
-      "fingerprint": "0d8aebfadd3da92f"
+      "fingerprint": "85bc98e2c21e704e"
     },
     "E4": {
       "arms": {
@@ -149,7 +149,7 @@
           "9": 0.930788
         }
       },
-      "fingerprint": "c508264d3a121d4f"
+      "fingerprint": "3d15807340a1f3c8"
     },
     "E5": {
       "arms": {
@@ -175,7 +175,7 @@
           "9": 1.978194
         }
       },
-      "fingerprint": "e0d67a0df8991624"
+      "fingerprint": "8eeae9d15bf589d8"
     },
     "E6": {
       "arms": {
@@ -201,7 +201,7 @@
           "9": 9.087621
         }
       },
-      "fingerprint": "c1e92aeafa6c4b22"
+      "fingerprint": "e12675045922eeb9"
     },
     "E7": {
       "arms": {
@@ -227,7 +227,7 @@
           "9": 19.098342
         }
       },
-      "fingerprint": "e733f5c6bba5cd87"
+      "fingerprint": "d2e61865336fb3fa"
     },
     "E8": {
       "arms": {
@@ -253,7 +253,7 @@
           "9": 0.360813
         }
       },
-      "fingerprint": "96ac50d05a33ec80"
+      "fingerprint": "f808d204c5dfaf7e"
     },
     "E9": {
       "arms": {
@@ -286,7 +286,7 @@
           "9": 11.707569
         }
       },
-      "fingerprint": "5e84d921ecf794f7"
+      "fingerprint": "46560a45a6af3bf5"
     }
   },
   "version": 1
