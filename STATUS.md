@@ -74,6 +74,21 @@ suite, independently of the 12-seed isolated run that first found it.
 
 <!-- daily-entries -->
 
+## 2026-08-30 IST
+
+*Generated 2026-08-30 20:34 IST.*
+
+**Automated suite run did not produce results.**
+
+```
+Traceback (most recent call last):
+  File "C:\digital-life-intelligence\scripts\daily_report.py", line 204, in main
+    ok, note = run_suite(args.replicates)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_suite() missing 1 required positional argument: 'base'
+```
+
+---
 ## 2026-08-28 IST
 
 *Generated 2026-08-28 09:10 IST.*
