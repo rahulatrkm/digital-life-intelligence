@@ -87,6 +87,45 @@ corroboration of it.
 
 <!-- daily-entries -->
 
+## 2026-08-31 IST
+
+*Generated 2026-08-31 07:29 IST.*
+
+**Automated suite run.** Seeds 11–15.
+
+| | |
+|---|---|
+| Ladder (contiguous) | **stage 1 — resource behaviour** |
+| Ladder (any) | stage 1 |
+| Seeds per arm | 5 |
+| Experiments passing | 1 / 10 |
+
+| exp | stage 0 | stage 1 | target | detail |
+|---|---|---|---|---|
+| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
+| E1 Resource seeking | n/a | fail | 1 fail | surviving descendants per founder 0.193 vs random 0.942 (gross births 4.0 vs 2.1) |
+| E2 Memory pressure | PASS | PASS | 2 fail | fitness delta 0.2095, p=0.3254, d=0.311 |
+| E3 Prediction pressure | PASS | n/a | 3 fail | fitness delta 0.0455, p=0.2302, d=0.448 |
+| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta -0.0393, p=0.7222, d=-0.375 |
+| E5 Cooperation pressure | PASS | PASS | 5 fail | fitness delta -0.9593, p=0.8929, d=-0.813 |
+| E6 Abstraction pressure | n/a | n/a | 6 fail | relative spread of outcome across signatures = 0.3762 (want < 0.25) |
+| E7 Culture pressure | n/a | PASS | 7 fail | mean normalised I(marker; action) = 0.0189 |
+| E8 Scientific behaviour pressure | PASS | n/a | 8 fail | fitness delta 0.0707, p=0.2183, d=0.516 |
+| E9 Intelligence acceleration | PASS | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000084 |
+
+**Pooled across runs.** Seeds accumulate at 30 per arm, fixed before the data; below that a comparison is provisional however its p-value looks.
+
+| exp | comparison | n | delta | d | p | status |
+|---|---|---|---|---|---|---|
+| E2 | beats_scrambled_memory vs scrambled_memory | 10 | +0.3840 | +0.445 | 0.1649 | provisional (10/30) |
+| E3 | beats_reactive_baseline vs no_memory | 10 | +0.0125 | +0.129 | 0.3818 | provisional (10/30) |
+| E4 | beats_scrambled_signals vs scrambled_signals | 10 | +0.0471 | +0.349 | 0.2094 | provisional (10/30) |
+| E5 | groups_beat_isolated vs isolated | 10 | +0.1511 | +0.123 | 0.3898 | provisional (10/30) |
+| E6 | beats_memorisation_baseline vs single_variant | 10 | +0.0462 | +0.017 | 0.4798 | provisional (10/30) |
+| E7 | removing_layer_reduces_performance vs no_markers | 10 | +0.3394 | +0.133 | 0.3983 | provisional (10/30) |
+| E8 | information_improves_outcomes vs no_probe | 10 | +0.0736 | +0.664 | 0.0800 | provisional (10/30) |
+
+---
 ## 2026-08-30 IST
 
 *Generated 2026-08-30 23:26 IST.*
