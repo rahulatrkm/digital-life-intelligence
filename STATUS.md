@@ -18,10 +18,10 @@ on this host being available; it is not an always-on hosted service.
 <!-- current-state:start -->
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-06 11:32 IST |
-| Study state | failed |
-| Complete seeds per arm | 25-30 / 30 |
-| Remaining worlds | not planned |
+| Updated | 2026-09-06 13:00 IST |
+| Study state | complete |
+| Complete seeds per arm | 30-30 / 30 |
+| Remaining worlds | 0 |
 | Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
 | Liveness | `worldzero status outputs/daily/progress.json` |
 | Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
@@ -60,39 +60,20 @@ historical observations; the current study uses a fixed cohort.
 
 ## 2026-09-06 IST
 
-*Generated 2026-09-06 11:32 IST.*
+*Generated 2026-09-06 13:00 IST.*
 
-<!-- study-state: failed -->
+<!-- study-state: complete -->
 
 **Fixed-cohort study.**
 
-**Automated suite run did not produce results.**
-
-```text
-Traceback (most recent call last):
-  File "C:\digital-life-intelligence\scripts\daily_report.py", line 422, in run_daily
-    completed = study.run_pending(
-                ^^^^^^^^^^^^^^^^^^
-  File "C:\digital-life-intelligence\src\worldzero\experiments\study.py", line 198, in run_pending
-    runner.run_many(
-  File "C:\digital-life-intelligence\src\worldzero\experiments\runner.py", line 359, in run_many
-    on_result(result)
-  File "C:\digital-life-intelligence\src\worldzero\experiments\study.py", line 191, in record
-    pooling.save(pool_path, pool)
-  File "C:\digital-life-intelligence\src\worldzero\experiments\pool.py", line 64, in save
-    temp.replace(path)
-  File "C:\Users\rahul2\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1376, in replace
-    os.replace(self, target)
-PermissionError: [WinError 5] Access is denied: 'C:\\digital-life-intelligence\\evidence\\pool..json.tmp' -> 'C:\\digital-life-intelligence\\evidence\\pool.json'
-
-```
+The fixed cohort is complete. No additional simulations were started.
 
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-06 11:32 IST |
-| Study state | failed |
-| Complete seeds per arm | 25-30 / 30 |
-| Remaining worlds | not planned |
+| Updated | 2026-09-06 13:00 IST |
+| Study state | complete |
+| Complete seeds per arm | 30-30 / 30 |
+| Remaining worlds | 0 |
 | Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
 | Liveness | `worldzero status outputs/daily/progress.json` |
 | Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
@@ -103,12 +84,12 @@ PermissionError: [WinError 5] Access is denied: 'C:\\digital-life-intelligence\\
 | E0 | 30/30 |
 | E1 | 30/30 |
 | E2 | 30/30 |
-| E3 | 25/30 |
-| E4 | 27/30 |
-| E5 | 28/30 |
+| E3 | 30/30 |
+| E4 | 30/30 |
+| E5 | 30/30 |
 | E6 | 30/30 |
 | E7 | 30/30 |
-| E8 | 25/30 |
+| E8 | 30/30 |
 | E9 | 30/30 |
 
 Planned seeds: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45.
@@ -117,13 +98,13 @@ Planned seeds: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 31, 32, 3
 
 | exp | comparison | n | delta | d | p | p (Holm) | status |
 |---|---|---|---|---|---|---|---|
-| E2 | treatment vs scrambled_memory | 30 | +0.1541 | +0.151 | 0.2794 | 1.0000 | provisional (30/30) |
-| E3 | treatment vs no_memory | 25 | -0.0090 | -0.100 | 0.6467 | 1.0000 | provisional (25/30) |
-| E4 | treatment vs scrambled_signals | 27 | +0.0123 | +0.091 | 0.3798 | 1.0000 | provisional (27/30) |
-| E5 | treatment vs isolated | 28 | +0.3227 | +0.263 | 0.1604 | 1.0000 | provisional (28/30) |
-| E6 | treatment vs single_variant | 30 | +0.3288 | +0.135 | 0.3018 | 1.0000 | provisional (30/30) |
-| E7 | treatment vs no_markers | 30 | -1.1531 | -0.359 | 0.9170 | 1.0000 | provisional (30/30) |
-| E8 | treatment vs no_probe | 25 | +0.0284 | +0.291 | 0.1609 | 1.0000 | provisional (25/30) |
+| E2 | treatment vs scrambled_memory | 30 | +0.1541 | +0.151 | 0.2794 | 1.0000 | no significant fitness benefit |
+| E3 | treatment vs no_memory | 30 | -0.0037 | -0.042 | 0.5747 | 1.0000 | no significant fitness benefit |
+| E4 | treatment vs scrambled_signals | 30 | +0.0318 | +0.238 | 0.1794 | 1.0000 | no significant fitness benefit |
+| E5 | treatment vs isolated | 30 | +0.3504 | +0.284 | 0.1344 | 0.9410 | no significant fitness benefit |
+| E6 | treatment vs single_variant | 30 | +0.3288 | +0.135 | 0.3018 | 1.0000 | no significant fitness benefit |
+| E7 | treatment vs no_markers | 30 | -1.1531 | -0.359 | 0.9170 | 1.0000 | no significant fitness benefit |
+| E8 | treatment vs no_probe | 30 | +0.0189 | +0.192 | 0.2439 | 1.0000 | no significant fitness benefit |
 
 ---
 ## 2026-08-31 IST
