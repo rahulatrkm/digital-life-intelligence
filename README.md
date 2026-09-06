@@ -34,7 +34,7 @@ worldzero watch --size 48 --population 150 --every 10
 worldzero run -c configs/world_zero.yaml --steps 4000 --size 64
 
 # Run a staged experiment with its ablation controls and detectors
-worldzero experiment E2 --replicates 3
+worldzero experiment E2 --replicates 5
 
 # Run the whole ladder
 worldzero suite --only E0 E1 E2 --steps 2000
@@ -55,6 +55,50 @@ Every run writes to `outputs/<run_id>/`:
 | `checkpoints/` | resumable world snapshots |
 
 Run directories are regenerable and can reach gigabytes, so they are gitignored.
+
+## Fixed-Cohort Study
+
+The rolling report is [STATUS.md](STATUS.md). The daily job recovers completed
+measurements, reserves a persistent 30-seed cohort, and runs only missing worlds.
+Changing the batch size does not change the reserved seeds. A full intelligence
+ladder is not established by passing an individual pooled fitness comparison.
+
+```bash
+# Recover existing measurements and inspect the remaining work, without simulating
+python scripts/daily_report.py --prepare-only --no-commit
+
+# Finish all remaining cohort worlds now, using the available workers
+python scripts/daily_report.py --finish
+
+# Read live progress; optionally expose /status and /healthz on localhost
+worldzero status outputs/daily/progress.json
+worldzero status outputs/daily/progress.json --serve 8787
+
+# Retry a regular suite using complete cached traces and measurements
+worldzero suite --seeds 41 42 43 44 45 --reuse-completed
+```
+
+The study checkpoints evidence after each completed world, queues historically
+expensive runs first, and prevents concurrent daily writers with an OS-managed
+lock. The result cache includes behavior traces and metric time series; its key
+covers simulation code, configuration, seed, run length, and output options.
+Older run summaries can restore fitness measurements, but cannot restore traces
+that were never saved. Partial living runs and mismatched configurations are not
+accepted as completed measurements.
+
+At the fixed endpoint, reported fitness comparisons use Holm adjustment across
+the seven predeclared comparisons. They do not substitute for the other stage
+criteria, and a non-significant test is not proof that an effect is absent.
+The job stops requesting simulations when the cohort is complete and continues
+updating the same status file. A new scientific study requires an explicit new
+plan, not indefinitely adding seeds until a test passes.
+
+The Windows task targets 07:00 IST and retries every two hours. It writes a
+running report before computation and a final report afterward. These updates
+require the host and scheduler to be available; the repository does not supply
+an always-on hosted service. `--no-commit` disables both commits and pushes;
+`--no-push` permits local commits only. `--no-run` refreshes a report from existing
+evidence and never claims a new simulation was performed.
 
 ## Checkpoints
 

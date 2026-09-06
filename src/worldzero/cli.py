@@ -207,6 +207,7 @@ def cmd_experiment(args: argparse.Namespace) -> int:
             verbose=True,
             progress=progress,
             workers=args.workers,
+            reuse_completed=getattr(args, "reuse_completed", False),
         )
         report = runner.run_experiment(spec, seed_list(args))
 
@@ -499,6 +500,9 @@ def build_parser() -> argparse.ArgumentParser:
     suite.add_argument("--only", nargs="+", help="subset of experiment ids")
     suite.add_argument("--seed", type=int, help="first seed")
     suite.add_argument("--seeds", type=int, nargs="+", help="explicit seed list")
+    suite.add_argument(
+        "--reuse-completed", action="store_true", help="reuse validated results including traces"
+    )
     suite.add_argument(
         "--replicates",
         type=int,

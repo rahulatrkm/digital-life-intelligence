@@ -2,11 +2,11 @@
 
 Single rolling status file. Newest entry first.
 
-**Updated automatically at 07:00 IST daily** by
-`scripts/daily_report.py`, run from a scheduled task. The entry is written
-whether or not the suite succeeds — a day with a crashed run still gets a
-status saying so, because silence cannot distinguish "nothing happened"
-from "something broke".
+**Scheduled for 07:00 IST daily, with two-hour catch-up attempts**, by
+[scripts/daily_report.py](scripts/daily_report.py). A running entry is written
+before computation and replaced with its outcome afterward. The current-state
+table is generated from the evidence, not maintained by hand. Reporting depends
+on this host being available; it is not an always-on hosted service.
 
 **Repo:** https://github.com/rahulatrkm/digital-life-intelligence
 **Spec:** *The Origin of Machine Intelligence* (v4, Aug 2026)
@@ -15,154 +15,96 @@ from "something broke".
 
 ## Current state
 
-| | |
+<!-- current-state:start -->
+| Measurement | Current Record |
 |---|---|
-| Ladder reached | **not settled — the verdict moves with the seeds** |
-| Last full suite | 2026-08-30 IST, 16k steps, seeds 6–10 |
-| Tests | 177 passing, ruff clean |
-| Experiments viable | 10 / 10 populations survive and reproduce |
-| Reaching stage 0 | 8 / 10 |
-| Reaching stage 1 | 7 / 10 |
-| Evidence pooling | 5 / 30 seeds per arm, target fixed before the data |
-| Throughput | 5.02× parallel × 1.16× per-step × 1.25× SMT ≈ **7.3×** |
-| Liveness | `worldzero status [--serve PORT]` |
-| Workers | 15 (logical count − 1), measured not assumed |
+| Updated | 2026-09-06 08:21 IST |
+| Study state | report-only |
+| Complete seeds per arm | 20-30 / 30 |
+| Remaining worlds | 140 |
+| Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
+| Liveness | `worldzero status outputs/daily/progress.json` |
+| Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
+| Last test verification | 210 passed, 0 failed (2026-09-06 IST) |
+<!-- current-state:end -->
+### Research Status
 
-### The five-seed verdict is not stable
+The simulator, staged experiments, controls, detectors, storage and CLI are
+implemented. The research claim remains open: a completed study or a single
+fitness benefit is not a demonstration of the full intelligence ladder.
 
-Changing only *which* five seeds are used flips three stages:
+Earlier five-seed verdicts changed with the seed block. Re-running seeds 1-5
+was not independent replication, and those seeds also overlapped the earlier
+12-seed memory experiment. Matching numbers alone do not prove duplication;
+the recorded shared inputs establish it here. The dated log retains the
+historical observations; the current study uses a fixed cohort.
 
-| stage | seeds 1–5 | seeds 6–10 |
-|---|---|---|
-| 2 memory | **PASS** (this was the headline) | fail — d=0.520, p=0.222, 3/5 seeds |
-| 5 cooperation | fail — p=0.151 | **PASS** — d=1.265, p=0.0397 |
-| 9 civilization | fail — archive 2.20 vs 3 | **PASS** — archive 3.20 vs 3 |
-| **contiguous ladder** | **2** | **1** (5 and 9 pass, not contiguous) |
+### Remaining Gaps
 
-Same code, same config, same 16,000 steps. Only the seed block differs.
-At n=5 the per-stage verdict is dominated by which worlds were drawn, and
-E9 straddling its threshold by 0.8 either way is the clearest case.
-
-**So "the ladder reaches stage 2" was over-claimed.** It was true of seeds
-1–5. It is not a property of the system.
-
-**And the replication I reported on 2026-08-24 was not one.** Two 16k
-suite runs "agreeing exactly — ladder 2, stage 0 8/10, stage 1 7/10" were
-identical because they ran the *same seeds* through a deterministic
-engine. Identical output was the symptom of the defect found on 08-30,
-and it was cited as confirmation. Agreement to four significant figures
-between independent samples should have read as impossible, not
-reassuring.
-
-The 12-seed dose-response for E2 (d=1.023, p=0.0120 at 16k) is untouched
-by this and remains the strongest single result. But seeds 1–5 are a
-subset of that same run, so the suite pass never was independent
-corroboration of it.
-
-### Open issues
-
-1. **The ladder needs a stable verdict, not another pass.** Runs now
-   contribute fresh seeds and pool in `evidence/pool.json` toward 30 per
-   arm. Below that, comparisons print as provisional. Live candidates:
-   E5 cooperation, E2 memory, E9 civilization, E4 communication
-   (d=0.852, p=0.103 at seeds 6–10).
-2. **E1 cannot express resource seeking.** `static` food never
-   replenishes, so with movement at 1.0 against idling at 0.1 the
-   longest-lived strategy is to forage *less*. A random arm is
-   accidentally frugal and wins. A property of the E1 design in §5.4,
-   not a tuning gap — recorded rather than tuned away.
-3. **E7 fails stage 0 on the lifespan tiebreak.** Both arms survive, so
-   persistence ties and the turnover-confounded measure decides it.
-4. **Stage 10 shows no acceleration** on either seed block: IAR negative,
-   0/5 seeds positive.
-5. **Six criteria have been found unable to measure what they claim** —
-   five inverted under selection, one could never produce a number at
-   all. See the dated log. Stages 0–1 have been revised four times; the
-   §14 detectors for stages 2–10 remain untouched.
-6. **Three defaults were convenience masquerading as science** — run
-   length 4,000, worker cap 8, and the daily job's seeds. All three are
-   now measured or rotated. Others may remain unexamined.
+1. **Full pooled stage assessment needs all its measurements.** Legacy files
+   retained fitness and metrics but not behavior traces. Their fitness can be
+   recovered; missing trace-dependent criteria cannot be reconstructed. New
+   result caches preserve those inputs.
+2. **Statistical scope is limited.** The fixed-cohort report adjusts seven
+   fitness comparisons together. It is not a complete pooled ladder verdict;
+   non-significance does not establish absence of a capability.
+3. **E1 and E7 have known design limitations.** Static food in E1 rewards
+   conserving movement costs, and E7's stage-0 lifespan tiebreak is affected by
+   population turnover. These were not retuned to obtain passing results.
+4. **Unattended operation needs an available host.** Catch-up and restart
+   recovery reduce wasted work but cannot guarantee a deadline during outages.
 
 ---
 
 <!-- daily-entries -->
 
-## 2026-09-04 IST
+## 2026-09-06 IST
 
-*Generated 2026-09-05 01:04 IST.*
+*Generated 2026-09-06 08:21 IST.*
 
-**Automated suite run.** Seeds 31–35.
+<!-- study-state: report-only -->
 
-| | |
+**Fixed-cohort study.**
+
+Existing evidence only; no simulations run.
+
+| Measurement | Current Record |
 |---|---|
-| Ladder (contiguous) | **stage 1 — resource behaviour** |
-| Ladder (any) | stage 9 |
-| Seeds per arm | 5 |
-| Experiments passing | 1 / 10 |
+| Updated | 2026-09-06 08:21 IST |
+| Study state | report-only |
+| Complete seeds per arm | 20-30 / 30 |
+| Remaining worlds | 140 |
+| Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
+| Liveness | `worldzero status outputs/daily/progress.json` |
+| Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
+| Last test verification | 210 passed, 0 failed (2026-09-06 IST) |
 
-| exp | stage 0 | stage 1 | target | detail |
-|---|---|---|---|---|
-| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
-| E1 Resource seeking | n/a | fail | 1 fail | surviving descendants per founder 0.359 vs random 0.853 (gross births 3.8 vs 1.9) |
-| E2 Memory pressure | PASS | PASS | 2 fail | fitness delta -0.0864, p=0.5357, d=-0.057 |
-| E3 Prediction pressure | PASS | n/a | 3 fail | fitness delta -0.0464, p=0.7897, d=-0.578 |
-| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta -0.0964, p=0.8849, d=-0.805 |
-| E5 Cooperation pressure | PASS | PASS | 5 fail | fitness delta 0.5455, p=0.3016, d=0.365 |
-| E6 Abstraction pressure | PASS | PASS | 6 fail | relative spread of outcome across signatures = 0.3587 (want < 0.25) |
-| E7 Culture pressure | n/a | PASS | 7 fail | mean normalised I(marker; action) = 0.0138 |
-| E8 Scientific behaviour pressure | PASS | n/a | 8 fail | fitness delta -0.0566, p=0.7024, d=-0.529 |
-| E9 Intelligence acceleration | n/a | PASS | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000037 |
-
-**Pooled across runs.** Seeds accumulate at 30 per arm, fixed before the data; below that a comparison is provisional however its p-value looks.
-
-| exp | comparison | n | delta | d | p | status |
-|---|---|---|---|---|---|---|
-| E2 | beats_scrambled_memory vs scrambled_memory | 20 | +0.3628 | +0.331 | 0.1609 | provisional (20/30) |
-| E3 | beats_reactive_baseline vs no_memory | 20 | -0.0053 | -0.059 | 0.5747 | provisional (20/30) |
-| E4 | beats_scrambled_signals vs scrambled_signals | 20 | -0.0127 | -0.103 | 0.6402 | provisional (20/30) |
-| E5 | groups_beat_isolated vs isolated | 20 | +0.3198 | +0.253 | 0.1984 | provisional (20/30) |
-| E6 | beats_memorisation_baseline vs single_variant | 20 | +0.0181 | +0.007 | 0.4593 | provisional (20/30) |
-| E7 | removing_layer_reduces_performance vs no_markers | 20 | -1.0779 | -0.441 | 0.9180 | provisional (20/30) |
-| E8 | information_improves_outcomes vs no_probe | 20 | +0.0180 | +0.176 | 0.3068 | provisional (20/30) |
-
----
-## 2026-09-01 IST
-
-*Generated 2026-09-01 03:08 IST.*
-
-**Automated suite run.** Seeds 16–20.
-
-| | |
+| Experiment | Complete matched seeds |
 |---|---|
-| Ladder (contiguous) | **stage 1 — resource behaviour** |
-| Ladder (any) | stage 1 |
-| Seeds per arm | 5 |
-| Experiments passing | 1 / 10 |
+| E0 | 30/30 |
+| E1 | 30/30 |
+| E2 | 30/30 |
+| E3 | 25/30 |
+| E4 | 25/30 |
+| E5 | 25/30 |
+| E6 | 25/30 |
+| E7 | 25/30 |
+| E8 | 25/30 |
+| E9 | 20/30 |
 
-| exp | stage 0 | stage 1 | target | detail |
-|---|---|---|---|---|
-| E0 Viability | PASS | PASS | 0 PASS | all criteria passed |
-| E1 Resource seeking | n/a | fail | 1 fail | surviving descendants per founder 0.134 vs random 0.917 (gross births 3.7 vs 2.1) |
-| E2 Memory pressure | PASS | PASS | 2 fail | fitness delta 0.7696, p=0.1548, d=0.716 |
-| E3 Prediction pressure | PASS | n/a | 3 fail | fitness delta 0.0001, p=0.5000, d=0.001 |
-| E4 Communication pressure | PASS | PASS | 4 fail | fitness delta -0.0486, p=0.8452, d=-0.686 |
-| E5 Cooperation pressure | PASS | PASS | 5 fail | fitness delta 0.4316, p=0.3254, d=0.330 |
-| E6 Abstraction pressure | PASS | n/a | 6 fail | relative spread of outcome across signatures = 0.3555 (want < 0.25) |
-| E7 Culture pressure | n/a | PASS | 7 fail | fitness delta -2.3446, p=0.9643, d=-1.262 |
-| E8 Scientific behaviour pressure | PASS | n/a | 8 fail | fitness delta -0.0184, p=0.6071, d=-0.244 |
-| E9 Intelligence acceleration | PASS | n/a | 10 fail | mean IAR (second-half slope minus first-half slope) = -0.000032 |
+Planned seeds: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45.
 
-**Pooled across runs.** Seeds accumulate at 30 per arm, fixed before the data; below that a comparison is provisional however its p-value looks.
+**Fixed-cohort fitness comparisons: 30 seeds per arm.** The cohort freezes at its target. Holm adjustment covers the reported comparison family; before all comparisons reach the target, every result is provisional. These are fitness checks, not full stage detections. A non-significant result does not establish absence of an effect.
 
-| exp | comparison | n | delta | d | p | status |
-|---|---|---|---|---|---|---|
-| E2 | beats_scrambled_memory vs scrambled_memory | 15 | +0.5125 | +0.562 | 0.0640 | provisional (15/30) |
-| E3 | beats_reactive_baseline vs no_memory | 15 | +0.0084 | +0.090 | 0.4008 | provisional (15/30) |
-| E4 | beats_scrambled_signals vs scrambled_signals | 15 | +0.0152 | +0.122 | 0.3648 | provisional (15/30) |
-| E5 | groups_beat_isolated vs isolated | 15 | +0.2446 | +0.201 | 0.2754 | provisional (15/30) |
-| E6 | beats_memorisation_baseline vs single_variant | 15 | -0.1326 | -0.045 | 0.5327 | provisional (15/30) |
-| E7 | removing_layer_reduces_performance vs no_markers | 15 | -0.5553 | -0.225 | 0.7261 | provisional (15/30) |
-| E8 | information_improves_outcomes vs no_probe | 15 | +0.0429 | +0.428 | 0.1134 | provisional (15/30) |
+| exp | comparison | n | delta | d | p | p (Holm) | status |
+|---|---|---|---|---|---|---|---|
+| E2 | treatment vs scrambled_memory | 30 | +0.1541 | +0.151 | 0.2794 | 1.0000 | provisional (30/30) |
+| E3 | treatment vs no_memory | 25 | -0.0090 | -0.100 | 0.6467 | 1.0000 | provisional (25/30) |
+| E4 | treatment vs scrambled_signals | 25 | +0.0168 | +0.121 | 0.3453 | 1.0000 | provisional (25/30) |
+| E5 | treatment vs isolated | 25 | +0.2594 | +0.206 | 0.2599 | 1.0000 | provisional (25/30) |
+| E6 | treatment vs single_variant | 25 | +0.4736 | +0.183 | 0.2644 | 1.0000 | provisional (25/30) |
+| E7 | treatment vs no_markers | 25 | -0.9633 | -0.390 | 0.9090 | 1.0000 | provisional (25/30) |
+| E8 | treatment vs no_probe | 25 | +0.0284 | +0.291 | 0.1609 | 1.0000 | provisional (25/30) |
 
 ---
 ## 2026-08-31 IST

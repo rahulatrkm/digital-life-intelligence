@@ -1,22 +1,20 @@
-"""Daily status run: execute the suite, update STATUS.md, commit, push.
+"""Recover and finish a fixed cohort, reporting progress before expensive work.
 
-Scheduled for 07:00 IST. The report is written whether or not the suite
-succeeds -- a day with a crashed run still needs a status entry saying so,
-otherwise silence is ambiguous between "nothing happened" and "something broke".
-
-    python scripts/daily_report.py                 full suite, commit and push
-    python scripts/daily_report.py --no-run        rebuild the entry from the
-                                                   last results, no simulation
-    python scripts/daily_report.py --no-push       write and commit only
+    python scripts/daily_report.py --finish          all remaining worlds
+    python scripts/daily_report.py --prepare-only    recover and plan, no simulation
+    python scripts/daily_report.py --no-run          report existing evidence only
+    python scripts/daily_report.py --no-commit       do not commit or push
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import traceback
+import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -24,6 +22,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from worldzero.experiments import pool as pooling  # noqa: E402
+from worldzero.experiments import study  # noqa: E402
+from worldzero.experiments.suite import SUITE  # noqa: E402
+from worldzero.storage.locking import exclusive_file_lock  # noqa: E402
+from worldzero.storage.progress import ProgressReporter  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 STATUS = ROOT / "STATUS.md"
@@ -34,6 +36,8 @@ POOL = ROOT / "evidence" / "pool.json"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 MARKER = "<!-- daily-entries -->"
+SNAPSHOT_START = "<!-- current-state:start -->"
+SNAPSHOT_END = "<!-- current-state:end -->"
 
 SEED_EPOCH = date(2026, 8, 30)
 SEED_ORIGIN = 6
@@ -64,6 +68,7 @@ def ist_stamp() -> str:
 
 def run_suite(replicates: int, base: int) -> tuple[bool, str]:
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    previous_write = SUMMARY.stat().st_mtime_ns if SUMMARY.exists() else None
     command = [
         sys.executable,
         "-m",
@@ -81,7 +86,15 @@ def run_suite(replicates: int, base: int) -> tuple[bool, str]:
     completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
     # The suite exits non-zero whenever any experiment fails its detectors,
     # which is the normal scientific outcome, not an error.
-    return SUMMARY.exists(), completed.stdout + completed.stderr
+    note = completed.stdout + completed.stderr
+    if completed.returncode not in (0, 1) or not SUMMARY.exists():
+        return False, note or f"suite exited {completed.returncode} without results"
+    if SUMMARY.stat().st_mtime_ns == previous_write:
+        return False, note + "\nNo fresh suite summary; previous results were not reused."
+    data = json.loads(SUMMARY.read_text(encoding="utf-8"))
+    if data.get("seeds") != list(range(base, base + replicates)):
+        return False, note + "\nSuite summary seeds do not match this run."
+    return True, note
 
 
 def stage_mark(detections: dict[int, dict], required: set[str], stage: int) -> str:
@@ -149,45 +162,54 @@ def pooled_lines(pool: dict[str, Any], data: dict[str, Any]) -> list[str]:
     best that morning, which is the same error as choosing a stopping rule after
     seeing the data.
     """
-    rows: list[str] = []
-    for experiment in data.get("experiments", []):
-        experiment_id = experiment.get("experiment_id")
-        required = set(experiment.get("required_detectors", []))
-        for detection in experiment.get("detections", []):
-            if detection.get("detector") not in required:
-                continue
-            for criterion in detection.get("criteria", []):
-                arm = criterion.get("control")
-                if not arm:
-                    continue
-                test = pooling.pooled_test(pool, experiment_id, arm)
-                if test is None:
-                    continue
-                n = test.n_treatment
-                if n < pooling.TARGET_SEEDS:
-                    verdict = f"provisional ({n}/{pooling.TARGET_SEEDS})"
-                elif test.statistic > 0 and test.significant:
-                    verdict = "**PASS**"
-                else:
-                    verdict = "settled null"
-                rows.append(
-                    f"| {experiment_id} | {criterion['name']} vs {arm} | {n} | "
-                    f"{test.statistic:+.4f} | {test.effect_size:+.3f} | "
-                    f"{test.p_value:.4f} | {verdict} |"
-                )
+    comparisons = []
+    for experiment_id, arm in study.FITNESS_CONTROLS.items():
+        test = pooling.pooled_test(pool, experiment_id, arm)
+        if test is not None:
+            comparisons.append((experiment_id, "treatment", arm, test))
 
-    if not rows:
+    if not comparisons:
         return []
+    adjusted = holm_adjust([test.p_value for _, _, _, test in comparisons])
+    family_complete = len(comparisons) == len(study.FITNESS_CONTROLS) and all(
+        test.n_treatment == pooling.TARGET_SEEDS for _, _, _, test in comparisons
+    )
+    rows = []
+    for (experiment_id, criterion, arm, test), adjusted_p in zip(
+        comparisons, adjusted, strict=True
+    ):
+        if not family_complete:
+            verdict = f"provisional ({test.n_treatment}/{pooling.TARGET_SEEDS})"
+        elif test.statistic > 0 and adjusted_p < 0.05:
+            verdict = "fitness benefit detected"
+        else:
+            verdict = "no significant fitness benefit"
+        rows.append(
+            f"| {experiment_id} | {criterion} vs {arm} | {test.n_treatment} | "
+            f"{test.statistic:+.4f} | {test.effect_size:+.3f} | "
+            f"{test.p_value:.4f} | {adjusted_p:.4f} | {verdict} |"
+        )
     return [
         "",
-        f"**Pooled across runs.** Seeds accumulate at {pooling.TARGET_SEEDS} per arm, "
-        "fixed before the data; below that a comparison is provisional however its "
-        "p-value looks.",
+        f"**Fixed-cohort fitness comparisons: {pooling.TARGET_SEEDS} seeds per arm.** "
+        "The cohort freezes at its target. Holm adjustment covers the reported comparison "
+        "family; before all comparisons reach the target, every result is provisional. "
+        "These are fitness checks, not full stage detections. A non-significant result "
+        "does not establish absence of an effect.",
         "",
-        "| exp | comparison | n | delta | d | p | status |",
-        "|---|---|---|---|---|---|---|",
+        "| exp | comparison | n | delta | d | p | p (Holm) | status |",
+        "|---|---|---|---|---|---|---|---|",
         *rows,
     ]
+
+
+def holm_adjust(values: list[float]) -> list[float]:
+    adjusted = [1.0] * len(values)
+    previous = 0.0
+    for rank, index in enumerate(sorted(range(len(values)), key=values.__getitem__)):
+        previous = max(previous, min(1.0, values[index] * (len(values) - rank)))
+        adjusted[index] = previous
+    return adjusted
 
 
 def build_entry(
@@ -262,89 +284,192 @@ def reported_successfully(text: str, date: str) -> bool:
     than the missed run it was meant to guard against.
     """
     body = entry_body(text, date)
-    return body is not None and FAILED_MARKER not in body
+    if body is None or FAILED_MARKER in body:
+        return False
+    if "<!-- study-state:" in body:
+        return any(f"<!-- study-state: {state} -->" in body
+                   for state in ("complete", "batch-complete"))
+    return "**Automated suite run.**" in body
 
 
 def git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=120)
+
+
+def update_snapshot(existing: str, snapshot: str) -> str:
+    replacement = f"{SNAPSHOT_START}\n{snapshot}\n{SNAPSHOT_END}\n"
+    if SNAPSHOT_START in existing and SNAPSHOT_END in existing:
+        before, rest = existing.split(SNAPSHOT_START, 1)
+        _, after = rest.split(SNAPSHOT_END, 1)
+        return before + replacement + after.lstrip("\n")
+    before, rest = existing.split("## Current state\n", 1)
+    boundary = rest.find("\n### ")
+    if boundary == -1:
+        boundary = rest.index(MARKER)
+    return before + "## Current state\n\n" + replacement + "\n" + rest[boundary:].lstrip("\n")
+
+
+def write_report(
+    date_label: str, pool: dict[str, Any], data: dict[str, Any], state: str, note: str
+) -> None:
+    counts = {experiment_id: pooling.sample_size(pool, experiment_id) for experiment_id in SUITE}
+    remaining = None
+    if "study" in pool and state != "failed":
+        remaining = len(study.pending_jobs(pool, specs=SUITE))
+    rows = [
+        "| Measurement | Current Record |", "|---|---|",
+        f"| Updated | {ist_stamp()} |",
+        f"| Study state | {state} |",
+        f"| Complete seeds per arm | {min(counts.values(), default=0)}-"
+        f"{max(counts.values(), default=0)} / {pooling.TARGET_SEEDS} |",
+        f"| Remaining worlds | {remaining if remaining is not None else 'not planned'} |",
+        "| Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |",
+        "| Liveness | `worldzero status outputs/daily/progress.json` |",
+        "| Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |",
+    ]
+    verification = ROOT / "outputs" / "verification" / "pytest.xml"
+    if verification.exists():
+        suites = ET.parse(verification).getroot().iter("testsuite")
+        totals = {name: 0 for name in ("tests", "failures", "errors", "skipped")}
+        for suite in suites:
+            for name in totals:
+                totals[name] += int(suite.get(name, "0"))
+        passed = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
+        checked = datetime.fromtimestamp(verification.stat().st_mtime, IST).strftime("%Y-%m-%d IST")
+        rows.append(
+            f"| Last test verification | {passed} passed, "
+            f"{totals['failures'] + totals['errors']} failed ({checked}) |"
+        )
+    entry = [
+        f"## {date_label} IST", "", f"*Generated {ist_stamp()}.*", "",
+        f"<!-- study-state: {state} -->", "", "**Fixed-cohort study.**", "", note, "",
+        *rows, "", "| Experiment | Complete matched seeds |", "|---|---|",
+        *(f"| {experiment_id} | {count}/{pooling.TARGET_SEEDS} |"
+          for experiment_id, count in counts.items()),
+    ]
+    if pool.get("study"):
+        entry += ["", "Planned seeds: " + ", ".join(map(str, pool["study"]["seeds"])) + "."]
+    entry += pooled_lines(pool, data)
+    entry += ["", "---", ""]
+    existing = STATUS.read_text(encoding="utf-8")
+    updated = splice(update_snapshot(existing, "\n".join(rows)), date_label, "\n".join(entry))
+    temporary = STATUS.with_name(f"{STATUS.name}.{os.getpid()}.tmp")
+    temporary.write_text(updated, encoding="utf-8")
+    temporary.replace(STATUS)
+    print(f"STATUS updated: {state}; complete seeds {counts}; remaining worlds {remaining}")
+
+
+def publish(args: argparse.Namespace, date_label: str) -> int:
+    if args.no_commit:
+        return 0
+    paths = [str(path.relative_to(ROOT)) for path in (STATUS, POOL) if path.exists()]
+    staged = git("add", "--", *paths)
+    if staged.returncode:
+        print(staged.stderr)
+        return staged.returncode
+    if git("diff", "--cached", "--quiet", "--", *paths).returncode:
+        committed = git(
+            "commit", "--only", "-m", f"STATUS: {date_label} fixed-cohort study", "--", *paths
+        )
+        if committed.returncode:
+            print(committed.stdout + committed.stderr)
+            return committed.returncode
+    if args.no_push:
+        return 0
+    pushed = git("push", "origin", "main")
+    print(pushed.stdout + pushed.stderr)
+    return pushed.returncode
+
+
+def run_daily(args: argparse.Namespace) -> int:
+    date_label = ist_today()
+    if args.if_missing and datetime.now(IST).hour < 7:
+        print("Before the 07:00 IST reporting window; no scheduled work due")
+        return 0
+    if args.if_missing and reported_successfully(STATUS.read_text(encoding="utf-8"), date_label):
+        return publish(args, date_label)
+
+    pool = pooling.empty()
+    data = {}
+    try:
+        pool = pooling.load(POOL)
+        if SUMMARY.exists():
+            data = json.loads(SUMMARY.read_text(encoding="utf-8"))
+        if not args.no_run and not args.no_pool:
+            recovered = study.recover(pool, OUTPUT, specs=SUITE)
+            print(f"Recovered {sum(recovered.values())} previously unpooled arm/seed measurements")
+            study.ensure_plan(pool, specs=SUITE)
+            pooling.save(POOL, pool)
+        if args.no_run or args.no_pool or args.prepare_only:
+            write_report(
+                date_label, pool, data, "report-only", "Existing evidence only; no simulations run."
+            )
+            return publish(args, date_label)
+        if pooling.complete(pool, list(SUITE)):
+            write_report(
+                date_label, pool, data, "complete",
+                "The fixed cohort is complete. No additional simulations were started.",
+            )
+            return publish(args, date_label)
+
+        write_report(
+            date_label, pool, data, "running",
+            "Recovering completed worlds and running only missing cohort measurements. "
+            "Results are saved after each completed world.",
+        )
+        publish(args, date_label)
+        with ProgressReporter(OUTPUT / "progress.json", command="fixed-cohort study") as progress:
+            completed = study.run_pending(
+                pool, POOL, OUTPUT, workers=args.workers,
+                per_experiment=None if args.finish else args.replicates,
+                progress=progress, specs=SUITE,
+            )
+        state = "complete" if pooling.complete(pool, list(SUITE)) else "batch-complete"
+        write_report(
+            date_label, pool, data, state,
+            f"Completed {completed} previously missing worlds. "
+            "No detector thresholds or world dynamics were changed.",
+        )
+        return publish(args, date_label)
+    except Exception:
+        note = traceback.format_exc()
+        print(note)
+        write_report(
+            date_label, pool, data, "failed", f"{FAILED_MARKER}\n\n```text\n{note[-1800:]}\n```"
+        )
+        publish(args, date_label)
+        return 1
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--replicates", type=int, default=5)
-    parser.add_argument("--no-run", action="store_true", help="reuse the last results")
-    parser.add_argument("--no-push", action="store_true")
-    parser.add_argument("--no-pool", action="store_true", help="skip the cross-run pool")
+    parser.add_argument("--workers", type=int, default=0)
     parser.add_argument(
-        "--if-missing",
-        action="store_true",
-        help="do nothing when today already has a successful entry, so catch-up runs are safe",
+        "--finish", action="store_true", help="finish all missing cohort worlds now"
+    )
+    parser.add_argument(
+        "--prepare-only", action="store_true", help="recover and plan without simulation"
+    )
+    parser.add_argument(
+        "--no-run", action="store_true", help="report existing evidence without simulation"
+    )
+    parser.add_argument(
+        "--no-pool", action="store_true", help="report only; do not change pooled evidence"
+    )
+    parser.add_argument("--no-push", action="store_true")
+    parser.add_argument("--no-commit", action="store_true", help="do not commit or push")
+    parser.add_argument(
+        "--if-missing", action="store_true", help="retry only incomplete daily reports"
     )
     args = parser.parse_args()
-
-    date = ist_today()
-
-    # The 07:00 IST trigger is skipped outright when the machine is off, and a
-    # skipped run leaves no entry at all -- the ambiguous silence this report was
-    # built to remove. Catch-up triggers fix that only if repeating is harmless.
-    if args.if_missing and reported_successfully(STATUS.read_text(encoding="utf-8"), date):
-        print(f"{date} already reported; nothing to do")
-        return 0
-
-    base = seed_base(datetime.now(IST).date(), args.replicates)
-    seeds = [base + i for i in range(args.replicates)]
-    note = ""
-    ok = False
-    data: dict[str, Any] | None = None
-
-    try:
-        if args.no_run:
-            ok = SUMMARY.exists()
-            note = "reused previous results" if ok else f"no summary at {SUMMARY}"
-        else:
-            ok, note = run_suite(args.replicates, base)
-        if ok:
-            data = json.loads(SUMMARY.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - the report must be written regardless
-        ok = False
-        note = traceback.format_exc()
-
-    pool: dict[str, Any] | None = None
-    if not args.no_pool:
-        try:
-            pool = pooling.load(POOL)
-            if data:
-                added = pooling.merge_summary(pool, data)
-                pooling.save(POOL, pool)
-                print(f"pooled {sum(added.values())} new observations")
-        except Exception:  # noqa: BLE001 - a pool failure must not lose the report
-            print(traceback.format_exc())
-            pool = None
-
-    STATUS.write_text(
-        splice(
-            STATUS.read_text(encoding="utf-8"),
-            date,
-            build_entry(date, ok, data, note, pool, seeds if ok else None),
-        ),
-        encoding="utf-8",
-    )
-    print(f"STATUS.md updated for {date} (suite ok: {ok}, seeds {seeds[0]}-{seeds[-1]})")
-
-    git("add", "STATUS.md", "evidence/pool.json")
-    if not git("diff", "--cached", "--quiet").returncode:
-        print("no status change to commit")
-        return 0
-
-    committed = git("commit", "-m", f"STATUS: {date} automated daily run")
-    if committed.returncode:
-        print(committed.stdout + committed.stderr)
-        return 1
-    if not args.no_push:
-        pushed = git("push", "origin", "main")
-        print(pushed.stdout + pushed.stderr)
-        return pushed.returncode
-    return 0
+    if args.replicates < 1 or args.workers < 0:
+        parser.error("replicates must be positive and workers must be non-negative")
+    with exclusive_file_lock(OUTPUT / ".daily.lock") as acquired:
+        if not acquired:
+            print("A daily study process is already active; no duplicate work started")
+            return 0
+        return run_daily(args)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,9 @@ import importlib.util
 import json
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from worldzero.experiments import pool as pooling
 
@@ -122,16 +125,68 @@ def test_round_trip(tmp_path):
     assert pooling.load(path) == pool
 
 
-def test_corrupt_pool_is_discarded_not_fatal(tmp_path):
+def test_corrupt_pool_is_not_silently_discarded(tmp_path):
     path = tmp_path / "pool.json"
     path.write_text("{not json", encoding="utf-8")
-    assert pooling.load(path) == pooling.empty()
+    with pytest.raises(ValueError):
+        pooling.load(path)
+    assert path.read_text(encoding="utf-8") == "{not json"
 
 
-def test_version_change_discards_old_pool(tmp_path):
+def test_version_change_preserves_old_pool(tmp_path):
     path = tmp_path / "pool.json"
     path.write_text(json.dumps({"version": 0, "experiments": {"E4": {}}}), encoding="utf-8")
-    assert pooling.load(path)["experiments"] == {}
+    with pytest.raises(ValueError, match="Unsupported"):
+        pooling.load(path)
+
+
+def test_fixed_cohort_does_not_keep_testing_new_seeds():
+    pool = pooling.empty()
+    pooling.merge_summary(pool, summary(range(10, 10 + pooling.TARGET_SEEDS)))
+    initial = pooling.pooled_test(pool, "E4", "scrambled_signals").to_dict()
+    pooling.merge_summary(pool, summary([1, 2, 100], treatment=100.0))
+    assert pooling.analysis_seeds(pool, "E4") == list(range(10, 40))
+    assert pooling.pooled_test(pool, "E4", "scrambled_signals").to_dict() == initial
+    assert pooling.complete(pool, ["E4"])
+    assert not pooling.complete(pool, ["E4", "E5"])
+
+
+def test_pool_counts_only_seeds_present_in_every_arm():
+    pool = pooling.empty()
+    data = summary([1, 2, 3])
+    data["experiments"][0]["controls"]["scrambled_signals"].pop()
+    pooling.merge_summary(pool, data)
+    assert pooling.sample_size(pool, "E4") == 2
+    assert pooling.pooled_test(pool, "E4", "scrambled_signals").n_control == 2
+
+
+def test_control_design_change_archives_both_arms():
+    pool = pooling.empty()
+    pooling.merge_summary(pool, summary([1, 2]))
+    data = summary([3, 4])
+    for run in data["experiments"][0]["controls"]["scrambled_signals"]:
+        run["design_fingerprint"] = "changed-control"
+    pooling.merge_summary(pool, data)
+    assert pooling.analysis_seeds(pool, "E4") == [3, 4]
+    assert set(pool["archives"]["E4"][0]["arms"]["treatment"]) == {"1", "2"}
+
+
+def test_mixed_design_batch_is_rejected_without_mutating_pool():
+    pool = pooling.empty()
+    data = summary([1, 2])
+    data["experiments"][0]["treatment"][1]["design_fingerprint"] = "other"
+    with pytest.raises(ValueError, match="mixed design"):
+        pooling.merge_summary(pool, data)
+    assert pool == pooling.empty()
+
+
+def test_conflicting_repeat_cannot_replace_observed_fitness():
+    pool = pooling.empty()
+    pooling.merge_summary(pool, summary([1, 2]))
+    before = json.dumps(pool, sort_keys=True)
+    with pytest.raises(ValueError, match="conflicting"):
+        pooling.merge_summary(pool, summary([1, 2], treatment=2.0))
+    assert json.dumps(pool, sort_keys=True) == before
 
 
 def test_daily_seeds_never_repeat_across_days():
@@ -179,3 +234,51 @@ def test_failure_of_one_day_does_not_read_the_next_days_entry():
     )
     assert not daily.reported_successfully(text, "2026-08-30")
     assert daily.reported_successfully(text, "2026-08-29")
+
+
+def test_failed_suite_cannot_reuse_an_old_summary(tmp_path, monkeypatch):
+    daily = _daily_report()
+    path = tmp_path / "suite-summary.json"
+    path.write_text(json.dumps({"seeds": [6, 7]}), encoding="utf-8")
+    monkeypatch.setattr(daily, "OUTPUT", tmp_path)
+    monkeypatch.setattr(daily, "SUMMARY", path)
+    monkeypatch.setattr(
+        daily.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="crashed"),
+    )
+    ok, note = daily.run_suite(2, 6)
+    assert not ok
+    assert "No fresh suite summary" in note
+    assert json.loads(path.read_text(encoding="utf-8"))["seeds"] == [6, 7]
+
+
+def test_fresh_suite_with_failed_detectors_is_a_completed_run(tmp_path, monkeypatch):
+    daily = _daily_report()
+    path = tmp_path / "suite-summary.json"
+    monkeypatch.setattr(daily, "OUTPUT", tmp_path)
+    monkeypatch.setattr(daily, "SUMMARY", path)
+
+    def completed_suite(command, **kwargs):
+        assert command[command.index("--seed") + 1] == "41"
+        path.write_text(json.dumps({"seeds": [41, 42]}), encoding="utf-8")
+        return SimpleNamespace(returncode=1, stdout="detectors not passed", stderr="")
+
+    monkeypatch.setattr(daily.subprocess, "run", completed_suite)
+    assert daily.run_suite(2, 41)[0]
+
+
+def test_fresh_suite_rejects_wrong_seeds(tmp_path, monkeypatch):
+    daily = _daily_report()
+    path = tmp_path / "suite-summary.json"
+    monkeypatch.setattr(daily, "OUTPUT", tmp_path)
+    monkeypatch.setattr(daily, "SUMMARY", path)
+
+    def wrong_suite(*args, **kwargs):
+        path.write_text(json.dumps({"seeds": [1, 2]}), encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(daily.subprocess, "run", wrong_suite)
+    ok, note = daily.run_suite(2, 41)
+    assert not ok
+    assert "seeds do not match" in note

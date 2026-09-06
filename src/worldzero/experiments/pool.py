@@ -21,6 +21,8 @@ honest:
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -47,12 +49,11 @@ def empty() -> dict[str, Any]:
 def load(path: Path) -> dict[str, Any]:
     if not path.exists():
         return empty()
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return empty()
+    data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("version") != VERSION:
-        return empty()
+        raise ValueError(f"Unsupported evidence pool version at {path}; refusing to discard it")
+    if not isinstance(data.get("experiments"), dict):
+        raise ValueError(f"Invalid evidence pool at {path}")
     return data
 
 
@@ -73,6 +74,7 @@ def _arms(experiment: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
 def merge_summary(pool: dict[str, Any], summary: dict[str, Any]) -> dict[str, int]:
     """Fold one suite summary into the pool, returning new observations per experiment."""
     added: dict[str, int] = {}
+    updated = deepcopy(pool)
 
     for experiment in summary.get("experiments", []):
         experiment_id = experiment.get("experiment_id")
@@ -80,21 +82,32 @@ def merge_summary(pool: dict[str, Any], summary: dict[str, Any]) -> dict[str, in
             continue
 
         arms = _arms(experiment)
-        # The design fingerprint deliberately excludes the seed: config_fingerprint
-        # covers it, so keying on that would treat every run as a new design and
-        # reset the pool on each one -- the guard would defeat the accumulation it
-        # exists to protect. Controls differ from the treatment by design and carry
-        # their own fingerprints, so the treatment arm identifies the world.
-        treatment_runs = arms.get("treatment") or []
-        fingerprint = ""
-        if treatment_runs:
-            first = treatment_runs[0]
-            fingerprint = first.get("design_fingerprint") or first.get("config_fingerprint", "")
+        fingerprints = {}
+        for arm, runs in arms.items():
+            designs = {run.get("design_fingerprint") for run in runs}
+            if len(designs) != 1 or not next(iter(designs), None):
+                raise ValueError(f"{experiment_id}/{arm}: missing or mixed design fingerprints")
+            fingerprints[arm] = next(iter(designs))
+            for run in runs:
+                fitness = run.get("fitness")
+                if not isinstance(run.get("seed"), int):
+                    raise ValueError(f"{experiment_id}/{arm}: invalid seed or fitness")
+                if not isinstance(fitness, (int, float)) or not isfinite(fitness):
+                    raise ValueError(f"{experiment_id}/{arm}: invalid fitness")
 
-        entry = pool["experiments"].get(experiment_id)
-        if entry is None or entry.get("fingerprint") != fingerprint:
+        fingerprint = fingerprints["treatment"]
+        entry = updated["experiments"].get(experiment_id)
+        changed = entry is not None and (
+            entry.get("fingerprint") != fingerprint
+            or set(entry["arms"]) != set(arms)
+            or entry.get("arm_fingerprints", fingerprints) != fingerprints
+        )
+        if changed:
+            updated.setdefault("archives", {}).setdefault(experiment_id, []).append(entry)
+        if entry is None or changed:
             entry = {"fingerprint": fingerprint, "arms": {}}
-            pool["experiments"][experiment_id] = entry
+            updated["experiments"][experiment_id] = entry
+        entry["arm_fingerprints"] = fingerprints
 
         new = 0
         for arm, runs in arms.items():
@@ -105,11 +118,18 @@ def merge_summary(pool: dict[str, Any], summary: dict[str, Any]) -> dict[str, in
                 if seed is None or fitness is None:
                     continue
                 key = str(seed)
+                if key in stored and stored[key] != float(fitness):
+                    raise ValueError(f"{experiment_id}/{arm}: conflicting result for seed {seed}")
                 if key not in stored:
                     new += 1
                 stored[key] = float(fitness)
+        selected = analysis_seeds(updated, experiment_id)
+        if len(selected) == TARGET_SEEDS:
+            entry.setdefault("cohort_seeds", selected)
         added[experiment_id] = new
 
+    pool.clear()
+    pool.update(updated)
     return added
 
 
@@ -120,16 +140,38 @@ def arm_values(pool: dict[str, Any], experiment_id: str, arm: str) -> list[float
 
 
 def sample_size(pool: dict[str, Any], experiment_id: str) -> int:
-    return len(arm_values(pool, experiment_id, "treatment"))
+    return len(analysis_seeds(pool, experiment_id))
+
+
+def analysis_seeds(pool: dict[str, Any], experiment_id: str) -> list[int]:
+    """Use complete matched seeds and freeze the first target-sized cohort."""
+    entry = pool.get("experiments", {}).get(experiment_id, {})
+    if "cohort_seeds" in entry:
+        return list(entry["cohort_seeds"])
+    arms = entry.get("arms", {})
+    if not arms or not arms.get("treatment"):
+        return []
+    common = set.intersection(*(set(map(int, observations)) for observations in arms.values()))
+    if "study" in pool:
+        common.intersection_update(pool["study"]["seeds"])
+    return sorted(common)[:TARGET_SEEDS]
+
+
+def complete(pool: dict[str, Any], experiments: list[str]) -> bool:
+    return bool(experiments) and all(
+        sample_size(pool, experiment_id) == TARGET_SEEDS for experiment_id in experiments
+    )
 
 
 def pooled_test(
     pool: dict[str, Any], experiment_id: str, control: str, *, seed: int = 0
 ) -> TestResult | None:
-    treatment = arm_values(pool, experiment_id, "treatment")
-    reference = arm_values(pool, experiment_id, control)
-    if not treatment or not reference:
+    arms = pool.get("experiments", {}).get(experiment_id, {}).get("arms", {})
+    seeds = analysis_seeds(pool, experiment_id)
+    if not seeds or control not in arms:
         return None
+    treatment = [arms["treatment"][str(seed)] for seed in seeds]
+    reference = [arms[control][str(seed)] for seed in seeds]
     return permutation_test(treatment, reference, seed=seed)
 
 

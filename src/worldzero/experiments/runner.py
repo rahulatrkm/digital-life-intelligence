@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
@@ -36,6 +37,7 @@ from worldzero.results import RunResult
 from worldzero.storage.checkpoints import save_checkpoint
 from worldzero.storage.events import EventLog, EventType
 from worldzero.storage.progress import ProgressReporter
+from worldzero.storage.result_cache import cache_path, load_result, save_result
 from worldzero.storage.run_dir import RunDirectory
 
 
@@ -123,12 +125,13 @@ def _run_world_task(payload: tuple[Any, ...]) -> RunResult:
     and seed: every cell-level draw comes from a stream keyed on that cell's
     identity rather than a shared cursor, so nothing depends on scheduling.
     """
-    output_dir, config, label, seed, steps, write_events, keep_traces = payload
+    output_dir, config, label, seed, steps, write_events, keep_traces, reuse_completed = payload
     runner = ExperimentRunner(
         output_dir,
         write_events=write_events,
         keep_traces=keep_traces,
         verbose=False,
+        reuse_completed=reuse_completed,
     )
     return runner.run_world(config, label=label, seed=seed, steps=steps)
 
@@ -145,6 +148,7 @@ class ExperimentRunner:
         verbose: bool = False,
         progress: ProgressReporter | None = None,
         workers: int | None = 1,
+        reuse_completed: bool = False,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.write_events = write_events
@@ -153,6 +157,7 @@ class ExperimentRunner:
         # A no-op reporter keeps the call sites free of None checks.
         self.progress = progress or ProgressReporter(None)
         self.workers = resolve_workers(workers)
+        self.reuse_completed = reuse_completed
 
     # -- one world ------------------------------------------------------------
 
@@ -168,6 +173,20 @@ class ExperimentRunner:
             config = config.with_seed(seed)
         seed = config.world.seed
         steps = steps or config.stop.max_steps
+
+        cached_path = None
+        if self.reuse_completed and not config.stop.max_wallclock_seconds:
+            cached_path = cache_path(
+                self.output_dir, config, label, steps, self.keep_traces, self.write_events
+            )
+            cached = load_result(cached_path, config)
+            if cached is not None and (
+                not self.write_events or (cached.events_path and Path(cached.events_path).exists())
+            ):
+                self.progress.run_finished()
+                if self.verbose:
+                    print(f"  reused {label} seed {seed} from a validated complete result")
+                return cached
 
         run_id = f"{config.name}-{label}-s{seed}"
         run_dir = RunDirectory.create(self.output_dir, run_id)
@@ -255,6 +274,8 @@ class ExperimentRunner:
 
         run_dir.write_json("summary.json", result.to_dict())
         self._write_metric_series(run_dir, metrics)
+        if cached_path is not None:
+            save_result(cached_path, result)
         self.progress.run_finished()
         if self.verbose:
             print(
@@ -289,6 +310,8 @@ class ExperimentRunner:
         jobs: list[tuple[SimulationConfig, str, int]],
         *,
         steps: int | None = None,
+        on_result: Callable[[RunResult], None] | None = None,
+        retain_results: bool = True,
     ) -> list[RunResult]:
         """Run independent worlds, in parallel when workers allow.
 
@@ -296,10 +319,14 @@ class ExperimentRunner:
         a parallel run and a sequential one produce the same list.
         """
         if self.workers <= 1 or len(jobs) <= 1:
-            return [
-                self.run_world(config, label=label, seed=seed, steps=steps)
-                for config, label, seed in jobs
-            ]
+            completed = []
+            for config, label, seed in jobs:
+                result = self.run_world(config, label=label, seed=seed, steps=steps)
+                if on_result is not None:
+                    on_result(result)
+                if retain_results:
+                    completed.append(result)
+            return completed
 
         payloads = [
             (
@@ -310,6 +337,7 @@ class ExperimentRunner:
                 steps,
                 self.write_events,
                 self.keep_traces,
+                self.reuse_completed,
             )
             for config, label, seed in jobs
         ]
@@ -322,10 +350,13 @@ class ExperimentRunner:
                     for index, payload in enumerate(payloads)
                 }
                 for future in as_completed(futures):
-                    index = futures[future]
+                    index = futures.pop(future)
                     result = future.result()
-                    results[index] = result
+                    if retain_results:
+                        results[index] = result
                     self.progress.run_finished()
+                    if on_result is not None:
+                        on_result(result)
                     if self.verbose:
                         print(
                             f"  {result.label:<20} seed {result.seed:<6} "
