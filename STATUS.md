@@ -18,8 +18,8 @@ on this host being available; it is not an always-on hosted service.
 <!-- current-state:start -->
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-06 08:21 IST |
-| Study state | report-only |
+| Updated | 2026-09-06 08:27 IST |
+| Study state | running |
 | Complete seeds per arm | 20-30 / 30 |
 | Remaining worlds | 140 |
 | Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
@@ -60,18 +60,18 @@ historical observations; the current study uses a fixed cohort.
 
 ## 2026-09-06 IST
 
-*Generated 2026-09-06 08:21 IST.*
+*Generated 2026-09-06 08:27 IST.*
 
-<!-- study-state: report-only -->
+<!-- study-state: running -->
 
 **Fixed-cohort study.**
 
-Existing evidence only; no simulations run.
+Recovering completed worlds and running only missing cohort measurements. Results are saved after each completed world.
 
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-06 08:21 IST |
-| Study state | report-only |
+| Updated | 2026-09-06 08:27 IST |
+| Study state | running |
 | Complete seeds per arm | 20-30 / 30 |
 | Remaining worlds | 140 |
 | Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
