@@ -18,10 +18,10 @@ on this host being available; it is not an always-on hosted service.
 <!-- current-state:start -->
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-06 08:27 IST |
-| Study state | running |
-| Complete seeds per arm | 20-30 / 30 |
-| Remaining worlds | 140 |
+| Updated | 2026-09-06 11:32 IST |
+| Study state | failed |
+| Complete seeds per arm | 25-30 / 30 |
+| Remaining worlds | not planned |
 | Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
 | Liveness | `worldzero status outputs/daily/progress.json` |
 | Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
@@ -60,20 +60,39 @@ historical observations; the current study uses a fixed cohort.
 
 ## 2026-09-06 IST
 
-*Generated 2026-09-06 08:27 IST.*
+*Generated 2026-09-06 11:32 IST.*
 
-<!-- study-state: running -->
+<!-- study-state: failed -->
 
 **Fixed-cohort study.**
 
-Recovering completed worlds and running only missing cohort measurements. Results are saved after each completed world.
+**Automated suite run did not produce results.**
+
+```text
+Traceback (most recent call last):
+  File "C:\digital-life-intelligence\scripts\daily_report.py", line 422, in run_daily
+    completed = study.run_pending(
+                ^^^^^^^^^^^^^^^^^^
+  File "C:\digital-life-intelligence\src\worldzero\experiments\study.py", line 198, in run_pending
+    runner.run_many(
+  File "C:\digital-life-intelligence\src\worldzero\experiments\runner.py", line 359, in run_many
+    on_result(result)
+  File "C:\digital-life-intelligence\src\worldzero\experiments\study.py", line 191, in record
+    pooling.save(pool_path, pool)
+  File "C:\digital-life-intelligence\src\worldzero\experiments\pool.py", line 64, in save
+    temp.replace(path)
+  File "C:\Users\rahul2\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1376, in replace
+    os.replace(self, target)
+PermissionError: [WinError 5] Access is denied: 'C:\\digital-life-intelligence\\evidence\\pool..json.tmp' -> 'C:\\digital-life-intelligence\\evidence\\pool.json'
+
+```
 
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-06 08:27 IST |
-| Study state | running |
-| Complete seeds per arm | 20-30 / 30 |
-| Remaining worlds | 140 |
+| Updated | 2026-09-06 11:32 IST |
+| Study state | failed |
+| Complete seeds per arm | 25-30 / 30 |
+| Remaining worlds | not planned |
 | Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
 | Liveness | `worldzero status outputs/daily/progress.json` |
 | Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
@@ -85,12 +104,12 @@ Recovering completed worlds and running only missing cohort measurements. Result
 | E1 | 30/30 |
 | E2 | 30/30 |
 | E3 | 25/30 |
-| E4 | 25/30 |
-| E5 | 25/30 |
-| E6 | 25/30 |
-| E7 | 25/30 |
+| E4 | 27/30 |
+| E5 | 28/30 |
+| E6 | 30/30 |
+| E7 | 30/30 |
 | E8 | 25/30 |
-| E9 | 20/30 |
+| E9 | 30/30 |
 
 Planned seeds: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45.
 
@@ -100,10 +119,10 @@ Planned seeds: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 31, 32, 3
 |---|---|---|---|---|---|---|---|
 | E2 | treatment vs scrambled_memory | 30 | +0.1541 | +0.151 | 0.2794 | 1.0000 | provisional (30/30) |
 | E3 | treatment vs no_memory | 25 | -0.0090 | -0.100 | 0.6467 | 1.0000 | provisional (25/30) |
-| E4 | treatment vs scrambled_signals | 25 | +0.0168 | +0.121 | 0.3453 | 1.0000 | provisional (25/30) |
-| E5 | treatment vs isolated | 25 | +0.2594 | +0.206 | 0.2599 | 1.0000 | provisional (25/30) |
-| E6 | treatment vs single_variant | 25 | +0.4736 | +0.183 | 0.2644 | 1.0000 | provisional (25/30) |
-| E7 | treatment vs no_markers | 25 | -0.9633 | -0.390 | 0.9090 | 1.0000 | provisional (25/30) |
+| E4 | treatment vs scrambled_signals | 27 | +0.0123 | +0.091 | 0.3798 | 1.0000 | provisional (27/30) |
+| E5 | treatment vs isolated | 28 | +0.3227 | +0.263 | 0.1604 | 1.0000 | provisional (28/30) |
+| E6 | treatment vs single_variant | 30 | +0.3288 | +0.135 | 0.3018 | 1.0000 | provisional (30/30) |
+| E7 | treatment vs no_markers | 30 | -1.1531 | -0.359 | 0.9170 | 1.0000 | provisional (30/30) |
 | E8 | treatment vs no_probe | 25 | +0.0284 | +0.291 | 0.1609 | 1.0000 | provisional (25/30) |
 
 ---
