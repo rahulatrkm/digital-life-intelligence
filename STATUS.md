@@ -18,7 +18,7 @@ on this host being available; it is not an always-on hosted service.
 <!-- current-state:start -->
 | Measurement | Current Record |
 |---|---|
-| Updated | 2026-09-19 07:00 IST |
+| Updated | 2026-09-20 07:00 IST |
 | Study state | complete |
 | Complete seeds per arm | 30-30 / 30 |
 | Remaining worlds | 0 |
@@ -58,6 +58,55 @@ historical observations; the current study uses a fixed cohort.
 
 <!-- daily-entries -->
 
+## 2026-09-20 IST
+
+*Generated 2026-09-20 07:00 IST.*
+
+<!-- study-state: complete -->
+
+**Fixed-cohort study.**
+
+The fixed cohort is complete. No additional simulations were started.
+
+| Measurement | Current Record |
+|---|---|
+| Updated | 2026-09-20 07:00 IST |
+| Study state | complete |
+| Complete seeds per arm | 30-30 / 30 |
+| Remaining worlds | 0 |
+| Scope | Fixed-cohort fitness comparisons; a full pooled ladder is not established |
+| Liveness | `worldzero status outputs/daily/progress.json` |
+| Reporting | 07:00 IST trigger with 2-hour retries, while the host is available |
+| Last test verification | 210 passed, 0 failed (2026-09-06 IST) |
+
+| Experiment | Complete matched seeds |
+|---|---|
+| E0 | 30/30 |
+| E1 | 30/30 |
+| E2 | 30/30 |
+| E3 | 30/30 |
+| E4 | 30/30 |
+| E5 | 30/30 |
+| E6 | 30/30 |
+| E7 | 30/30 |
+| E8 | 30/30 |
+| E9 | 30/30 |
+
+Planned seeds: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45.
+
+**Fixed-cohort fitness comparisons: 30 seeds per arm.** The cohort freezes at its target. Holm adjustment covers the reported comparison family; before all comparisons reach the target, every result is provisional. These are fitness checks, not full stage detections. A non-significant result does not establish absence of an effect.
+
+| exp | comparison | n | delta | d | p | p (Holm) | status |
+|---|---|---|---|---|---|---|---|
+| E2 | treatment vs scrambled_memory | 30 | +0.1541 | +0.151 | 0.2794 | 1.0000 | no significant fitness benefit |
+| E3 | treatment vs no_memory | 30 | -0.0037 | -0.042 | 0.5747 | 1.0000 | no significant fitness benefit |
+| E4 | treatment vs scrambled_signals | 30 | +0.0318 | +0.238 | 0.1794 | 1.0000 | no significant fitness benefit |
+| E5 | treatment vs isolated | 30 | +0.3504 | +0.284 | 0.1344 | 0.9410 | no significant fitness benefit |
+| E6 | treatment vs single_variant | 30 | +0.3288 | +0.135 | 0.3018 | 1.0000 | no significant fitness benefit |
+| E7 | treatment vs no_markers | 30 | -1.1531 | -0.359 | 0.9170 | 1.0000 | no significant fitness benefit |
+| E8 | treatment vs no_probe | 30 | +0.0189 | +0.192 | 0.2439 | 1.0000 | no significant fitness benefit |
+
+---
 ## 2026-09-19 IST
 
 *Generated 2026-09-19 07:00 IST.*
